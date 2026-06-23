@@ -140,20 +140,46 @@ Intervalo inicial:
 
 1 segundo
 
-A cada tick, o tempo simulado avança:
+A cada tick, o servidor executa a seguinte sequência em ordem:
 
-simulatedTime += 1000   // fator de aceleração 1000x
+  1. simulatedTime += 1000
+     O tempo simulado do universo avança. Todos os cálculos (órbitas, viagens)
+     utilizam simulatedTime como referência, não o tempo real.
 
-Isto significa que 1 tick real (1s) equivale a ~16,7 minutos simulados. O fator poderá ser ajustado por milestone.
+  2. recalcular órbitas
+     Para cada OrbitalBody do sistema, calcular nova posição (x, y) no plano
+     usando a fórmula elíptica com o simulatedTime atual.
 
-Tanto órbitas quanto movimentação de frotas operam neste mesmo domínio (simulatedTime), garantindo consistência temporal entre planetas e viagens.
+  3. processar movimentos
+     Para cada Movement ativo:
+       - calcular progresso da viagem:
+         progresso = (simulatedTime - departureSimulatedTime) /
+                     (arrivalSimulatedTime - departureSimulatedTime)
+       - interpolar posição da frota entre origem e destino
+       - se simulatedTime >= arrivalSimulatedTime:
+           Fleet.state = ORBIT
+           Fleet.locationId = destinationId
+           remover Movement
+           disparar evento FLEET_ARRIVED
 
-Responsável por:
+  4. broadcast STATE_UPDATE por sistema solar
+     Agrupar clientes por systemId (sistema onde a frota do jogador está).
+     Para cada sistema, montar um STATE_UPDATE contendo apenas os
+     orbitalBodies, fleets e movements daquele sistema.
+     Enviar para cada cliente apenas o STATE_UPDATE do seu sistema atual.
 
-* atualizar órbitas
-* processar movimentos
-* disparar eventos
-* atualizar estado global
+  5. autosave por sistema solar (a cada 30 ticks)
+     Para cada sistema, persistir seus dados em:
+       data/systems/<systemId>/bodies.json
+       data/systems/<systemId>/fleets.json
+       data/systems/<systemId>/movements.json
+     Players e players.json permanecem globais (cross-system).
+
+Tick = 1 segundo real (wall clock). simulatedTime é independente e pode ser
+acelerado sem afetar o intervalo do tick.
+
+Isto significa que 1 tick real (1s) equivale a ~16,7 minutos simulados
+(fator 1000x). O fator poderá ser ajustado por milestone.
 
 ---
 

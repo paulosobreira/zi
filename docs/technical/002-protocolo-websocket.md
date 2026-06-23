@@ -186,7 +186,7 @@ Inicia movimentação.
 "type": "MOVE_STARTED",
 "payload": {
 "fleetId": "fleet-1",
-"arrivalTime": 1750003600
+"arrivalSimulatedTime": 90000
 }
 }
 

@@ -170,8 +170,8 @@ Representa uma viagem entre dois pontos orbitais.
 * fleetId
 * originId
 * destinationId
-* departureTime
-* arrivalTime
+* departureSimulatedTime
+* arrivalSimulatedTime
 
 ---
 
@@ -182,8 +182,8 @@ Representa uma viagem entre dois pontos orbitais.
 "fleetId": "fleet-1",
 "originId": "mars",
 "destinationId": "jupiter",
-"departureTime": 1750000000,
-"arrivalTime": 1750003600
+"departureSimulatedTime": 50000,
+"arrivalSimulatedTime": 90000
 }
 
 ---
