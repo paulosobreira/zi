@@ -1,24 +1,89 @@
-# Milestone 1 - Sistema Solar Sandbox
+# Representação Espacial
 
-## Objetivo
+## Visão Geral
 
-Permitir que um jogador controle uma frota em um Sistema Solar simplificado e realize viagens entre planetas utilizando mecânicas baseadas em órbitas.
+O Sistema Solar é a área jogável do Milestone 1.
 
-O objetivo deste milestone é validar:
+O jogador observa o sistema em uma visão superior (top-down).
 
-* Universo persistente
-* Movimentação de frotas
-* Cálculo de trajetórias
-* Persistência de viagens
-* Visualização do sistema solar
+Não existe:
+
+* perspectiva
+* rotação de câmera
+* inclinação do plano orbital
+
+Todo o sistema é visualizado perpendicularmente ao plano orbital.
 
 ---
 
-## Escopo
+# Escala
 
-### Sistema Solar
+Escala inicial alvo:
 
-O jogo inicia com um único sistema:
+1 pixel = 1.000.000 km
+
+Esta escala é utilizada para:
+
+* posicionamento orbital
+* cálculo de distâncias
+* visualização do sistema
+
+A escala poderá ser ajustada futuramente após validação de gameplay.
+
+O objetivo é manter uma relação consistente entre:
+
+* distância visual
+* distância simulada
+* tempo de viagem
+
+---
+
+# Área da Simulação
+
+O tamanho da sala deve ser calculado dinamicamente.
+
+A sala deve ser grande o suficiente para conter:
+
+* Sol
+* todos os planetas
+* cinturão principal
+* cinturão de Kuiper
+
+com margem adicional para movimentação da câmera.
+
+A área simulada não possui relação com a resolução da tela do jogador.
+
+A viewport representa apenas uma janela sobre o universo.
+
+---
+
+# Centro do Sistema
+
+O Sol deve permanecer no centro geométrico da sala.
+
+O Sol não deve utilizar a coordenada (0,0).
+
+Exemplo:
+
+Sala:
+
+16000 x 16000 pixels
+
+Centro:
+
+(8000,8000)
+
+Posição do Sol:
+
+(8000,8000)
+
+Todas as órbitas devem ser calculadas a partir desta posição.
+
+---
+
+# Sistema Solar Inicial
+
+O Milestone 1 deve conter:
 
 * Sol
 * Mercúrio
@@ -31,239 +96,170 @@ O jogo inicia com um único sistema:
 * Urano
 * Netuno
 * Cinturão de Kuiper
-* Nuvem de Oort
+
+A Nuvem de Oort poderá ser adicionada posteriormente.
 
 ---
 
-### Escala
+# Órbitas
 
-O sistema utiliza escala reduzida.
+Todas as órbitas devem ser elípticas.
 
-Escala inicial:
+Cada OrbitalBody possui:
 
-1 unidade visual = 1.000.000 km
+* semi-eixo maior
+* excentricidade
+* período orbital
+* fase orbital
 
-O objetivo é manter:
+As órbitas devem ser desenhadas permanentemente.
 
-* Órbitas reconhecíveis
-* Distâncias proporcionais
-* Boa visualização em tela
+Os corpos orbitais devem se mover continuamente durante a simulação.
 
----
-
-### Órbitas
-
-Todos os corpos orbitais utilizam órbitas elípticas simplificadas.
-
-Cada astro possui:
-
-* Semi-eixo maior
-* Excentricidade
-* Período orbital
-* Posição orbital atual
-
-O servidor é responsável por atualizar as posições.
+A posição visual deve corresponder à posição calculada pelo servidor.
 
 ---
 
-### Visualização
+# Simulação Orbital
 
-Visão superior do plano orbital.
+O sistema nunca permanece estático.
 
-Características:
+Mesmo sem interação do jogador:
 
-* Zoom contínuo
-* Pan livre
-* Sem perspectiva
-* Sem sombras
-* Sem texturas
+* planetas continuam orbitando
+* posições continuam sendo atualizadas
+* a visualização permanece viva
 
-Representação visual:
-
-* Sol = círculo
-* Planetas = círculos
-* Asteroides = pontos
-* Órbitas = linhas finas
-
-Os corpos celestes não utilizam cores.
-
-A diferenciação ocorre por:
-
-* Tamanho
-* Nome
-* Distância orbital
+O movimento orbital pode ser acelerado em relação ao tempo real para melhorar a percepção visual.
 
 ---
 
-## Jogador
+# Frota Inicial
 
-Ao conectar:
+Ao iniciar uma nova sessão:
 
-* Recebe uma frota inicial
-* A frota inicia em órbita de um planeta aleatório
-* Apenas uma frota existe neste milestone
+* uma frota é criada
+* a frota inicia orbitando um OrbitalBody aleatório do tipo PLANET
 
----
+Estado inicial:
 
-## Frota
-
-Estrutura mínima:
-
-* Identificador
-* Proprietário
-* Posição atual
-* Estado atual
-
-Estados possíveis:
-
-* Em órbita
-* Em trânsito
-* Estacionada
+ORBIT
 
 ---
 
-## Navegação
+# Órbita da Frota
 
-O jogador não controla a nave manualmente.
+Quando em órbita:
 
-O jogador informa apenas:
+* a frota acompanha a posição do planeta
+* a frota realiza uma pequena órbita visual ao redor do planeta
 
-* Destino
-* Tipo de inserção orbital
+A órbita da frota não precisa utilizar física real.
 
-O servidor calcula toda a trajetória.
-
----
-
-## Tipos de Destino
-
-### Órbita Planetária
-
-Exemplo:
-
-Terra
-
-Resultado:
-
-A frota entra em órbita da Terra.
+O objetivo é apenas demonstrar visualmente que ela está estacionada naquele corpo orbital.
 
 ---
 
-### Anéis Planetários
+# Navegação
 
-Exemplo:
+O jogador seleciona um destino clicando diretamente sobre um OrbitalBody.
 
-Anel de Saturno
+Exemplos:
 
-Resultado:
-
-A frota permanece estacionada na região dos anéis.
-
----
-
-### Cinturões de Asteroides
-
-Exemplo:
-
-Cinturão Principal
-
-Resultado:
-
-A frota permanece na região escolhida.
+* Marte
+* Júpiter
+* Saturno
+* Cinturão Principal
+* Cinturão de Kuiper
 
 ---
 
-### Nuvem de Oort
+# Menu de Contexto
 
-Destino extremo do sistema.
+Ao clicar em um OrbitalBody deve ser exibido um menu contextual.
 
-Utilizada futuramente para mineração.
+Opções iniciais:
 
----
-
-## Interface de Navegação
-
-Entrada simples:
-
-Origem:
-Marte
-
-Destino:
-Júpiter
-
-Modo:
-Órbita
-
-Ao confirmar:
-
-* O servidor calcula a interseção orbital
-* Define a rota
-* Define o tempo estimado
-* Inicia a viagem
+* Viajar para órbita
+* Cancelar
 
 ---
 
-## Modelo Simplificado de Viagem
+# Transferência Orbital
 
-O sistema não simula física real.
+Ao confirmar a viagem:
 
-Utiliza uma aproximação baseada em:
+o servidor cria um Movement.
 
-* Distância orbital
-* Velocidade da frota
-* Penalidade de transferência orbital
+Durante a viagem:
 
-Tempo de viagem:
+* a frota permanece visível
+* a trajetória é desenhada
+* a animação demonstra claramente a mudança orbital
 
-Tempo = Distância / Velocidade
+Não é necessário utilizar mecânica orbital real.
 
----
+Uma curva de transferência simplificada é suficiente.
 
-## Tempos Desejados
-
-Objetivo de gameplay:
-
-* Planetas vizinhos: 15 a 30 minutos
-* Planetas médios: 30 a 90 minutos
-* Júpiter e Saturno: 1 a 3 horas
-* Urano e Netuno: 3 a 6 horas
-* Nuvem de Oort: até 12 horas
-
-O sistema deve transmitir sensação de escala sem tornar os testes lentos.
+O jogador deve conseguir acompanhar visualmente toda a movimentação.
 
 ---
 
-## Persistência
+# Câmera
 
-Toda movimentação continua ocorrendo mesmo com o jogador desconectado.
+A câmera deve suportar:
 
-A chegada é calculada pelo servidor.
+* zoom com scroll do mouse
+* pan com botão direito
+* pan com botão do meio
 
----
-
-## Critérios de Aceitação
-
-* Jogador conecta
-* Recebe uma frota
-* Visualiza o sistema solar
-* Seleciona destino
-* Servidor calcula rota
-* Viagem é iniciada
-* Viagem continua offline
-* Chegada ocorre corretamente
-* Estado é persistido após reinício do servidor
+A câmera pode navegar livremente pela sala.
 
 ---
 
-## Fora de Escopo
+# Centralizar Frota
 
-* Combate
-* Recursos
-* Mineração
-* Lander
-* Asteroides jogáveis
-* Tecnologia
-* Colonização
-* Múltiplos jogadores
-* Diplomacia
-* Economia
+A interface deve possuir um botão permanente:
+
+Centralizar Frota
+
+Ao clicar:
+
+* a câmera centraliza na posição atual da frota
+* o nível de zoom é preservado
+
+---
+
+# Renderização
+
+Representação mínima:
+
+* Sol → círculo
+* Planetas → círculos
+* Frota → triângulo
+* Órbitas → linhas elípticas
+* Cinturões → anéis pontilhados
+
+Sem:
+
+* texturas
+* sombras
+* iluminação
+* efeitos visuais complexos
+
+---
+
+# Critérios de Aceitação Visuais
+
+Ao iniciar o jogo deve ser possível:
+
+* visualizar todas as órbitas
+* visualizar planetas se movendo
+* visualizar a frota orbitando
+* navegar pelo sistema usando zoom e pan
+* selecionar um destino
+* iniciar uma viagem
+* acompanhar a transferência orbital
+* centralizar a câmera na frota
+
+O sistema deve transmitir a sensação de estar observando um Sistema Solar vivo em escala reduzida.
