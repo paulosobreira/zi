@@ -118,7 +118,7 @@ O Milestone 1 deve conter:
 * Netuno
 * Cinturão de Kuiper
 
-A Nuvem de Oort Ou borda dos sitema solar não sera considerada.
+A Nuvem de Oort e a borda do sistema solar não serão consideradas.
 
 ---
 
@@ -194,7 +194,9 @@ O cálculo de posição orbital usa simulatedTime no lugar do tick:
 r(θ) = semiMajorAxis × (1 - eccentricity²) / (1 + eccentricity × cos(θ))
 ```
 
-Onde orbitalPeriodDias é o período da tabela em dias terrestres. O fator de aceleração poderá ser ajustado por milestone.
+Onde orbitalPeriodDias é o período da tabela em dias terrestres. 86400 é o número de segundos em um dia terrestre (24h × 60min × 60s) — necessário para converter dias para segundos simulados. O fator de aceleração poderá ser ajustado por milestone.
+
+A velocidade das frotas também opera neste mesmo domínio (simulatedTime), garantindo que órbitas e viagens compartilhem a mesma escala temporal.
 
 ---
 
@@ -276,21 +278,24 @@ O jogador deve conseguir acompanhar visualmente toda a movimentação.
 ## Mecânica de Viagem
 
 ```
-Fleet speed: 20 pixels / tick (20 px/s em tempo real)
+Fleet speed: 20 pixels / 1000 simulatedTime (mesmo domínio temporal das órbitas)
 
-Cálculo de travelTime:
-  distance    = distância linear entre origem e destino (em pixels)
-  travelTime  = distance / fleetSpeed  (em ticks)
+Cálculo de travelSimulatedTime:
+  distance            = distância linear entre origem e destino (em pixels)
+  travelSimulatedTime = distance / fleetSpeed × 1000
+
+  departureSimulatedTime = simulatedTime (no momento da partida)
+  arrivalSimulatedTime   = departureSimulatedTime + travelSimulatedTime
 
 Animação da trajetória:
   - A frota move-se em linha reta da posição orbital de origem
     até a posição orbital do destino (ambos se movem durante a viagem)
-  - A cada tick, a posição da frota é interpolada linearmente:
-    progresso    = (tickAtual - departureTime) / (arrivalTime - departureTime)
-    posFrota     = lerp(posOrigem(t), posDestino(t), progresso)
+  - Em cada tick, a posição da frota é interpolada linearmente:
+    progresso = (simulatedTime - departureSimulatedTime) / (arrivalSimulatedTime - departureSimulatedTime)
+    posFrota  = lerp(posOrigem(progresso), posDestino(progresso), progresso)
   - Uma linha de trajetória é desenhada do ponto de origem ao destino
 
-Ao chegar:
+Ao chegar (simulatedTime >= arrivalSimulatedTime):
   - Fleet.state = ORBIT
   - Fleet.locationId = destinationId
   - Servidor emite evento FLEET_ARRIVED para o cliente

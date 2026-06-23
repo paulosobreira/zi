@@ -146,6 +146,8 @@ simulatedTime += 1000   // fator de aceleração 1000x
 
 Isto significa que 1 tick real (1s) equivale a ~16,7 minutos simulados. O fator poderá ser ajustado por milestone.
 
+Tanto órbitas quanto movimentação de frotas operam neste mesmo domínio (simulatedTime), garantindo consistência temporal entre planetas e viagens.
+
 Responsável por:
 
 * atualizar órbitas

@@ -216,16 +216,19 @@ Estado global do universo.
 
 # Cálculo de Posição Orbital
 
-Dado um OrbitalBody com parâmetros elípticos, a posição em um tick t é:
+Dado um OrbitalBody com parâmetros elípticos, a posição no tempo simulado é:
 
 ```
-ângulo θ(t) = (2π × t / orbitalPeriod + orbitalPhase) mod 2π
+ângulo θ(t) = (2π × simulatedTime / (orbitalPeriod × 86400) + orbitalPhase) mod 2π
 raio r(θ)   = semiMajorAxis × (1 - eccentricity²) / (1 + eccentricity × cos(θ))
 
 posição no plano:
   x = centroSistemaX + r × cos(θ)
   y = centroSistemaY + r × sin(θ)
 ```
+
+86400 = número de segundos em um dia terrestre (24h × 60min × 60s).
+orbitalPeriod está em dias, simulatedTime em segundos — a conversão unifica as unidades.
 
 ---
 
