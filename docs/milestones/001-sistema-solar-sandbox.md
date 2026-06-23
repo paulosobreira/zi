@@ -264,12 +264,12 @@ o servidor cria um Movement.
 Durante a viagem:
 
 * a frota permanece visível
-* a trajetória é desenhada
+* a trajetória é desenhada como uma curva (arco bezier)
 * a animação demonstra claramente a mudança orbital
 
 Não é necessário utilizar mecânica orbital real.
 
-Uma curva de transferência simplificada é suficiente.
+Uma curva de transferência simplificada (Hohmann-like) é suficiente.
 
 O jogador deve conseguir acompanhar visualmente toda a movimentação.
 
@@ -287,19 +287,30 @@ Cálculo de travelSimulatedTime:
   departureSimulatedTime = simulatedTime (no momento da partida)
   arrivalSimulatedTime   = departureSimulatedTime + travelSimulatedTime
 
-Animação da trajetória:
-  - A frota move-se em linha reta da posição orbital de origem
-    até a posição orbital do destino (ambos se movem durante a viagem)
-  - Em cada tick, a posição da frota é interpolada linearmente:
-    progresso = (simulatedTime - departureSimulatedTime) / (arrivalSimulatedTime - departureSimulatedTime)
-    posFrota  = lerp(posOrigem(progresso), posDestino(progresso), progresso)
-  - Uma linha de trajetória é desenhada do ponto de origem ao destino
+Trajetória (curva de transferência):
+  A trajetória é desenhada como uma quadratic bezier curve simulando
+  uma manobra de transferência de Hohmann:
+
+  Ponto de controle (CP) da bezier:
+    mid  = (origem + destino) / 2
+    dir  = normalize(mid - centroDoSistema)
+    push = distance(origem, centroDoSistema) × 0.4
+    CP   = mid + dir × push
+
+  A frota segue a MESMA curva bezier (não interpolação linear):
+    posFrota = bezier(origem, CP, destino, progresso)
+    bezier(P0, P1, P2, t) = (1-t)² × P0 + 2(1-t)t × P1 + t² × P2
+
+  progresso = (simulatedTime - departureSimulatedTime) /
+              (arrivalSimulatedTime - departureSimulatedTime)
 
 Ao chegar (simulatedTime >= arrivalSimulatedTime):
   - Fleet.state = ORBIT
   - Fleet.locationId = destinationId
   - Servidor emite evento FLEET_ARRIVED para o cliente
 ```
+
+---
 
 ---
 
@@ -372,6 +383,57 @@ Exceção: glow sutil no Sol (círculo com gradiente radial + blur).
 ---
 
 # Identidade Visual
+
+## Nameplates
+
+Cada planeta deve exibir um rótulo com seu nome (nameplate) sobreposto ao sistema solar.
+
+Requisitos:
+
+* tamanho fixo na tela — não deve ser afetado pelo zoom da câmera
+* posicionado abaixo do círculo do planeta
+* cor #CCCCCC com stroke preto para legibilidade
+* fundo: sem fundo (apenas texto)
+* camada separada do restante do sistema (não deve ser filha do container da câmera)
+
+Implementação:
+
+```
+Layer: Container filho de app.stage (fora do container da câmera)
+Fonte: monospace, 10px
+
+Posição (convertida mundo → tela a cada frame):
+  sx = planet.worldX × camera.scale.x + camera.container.x
+  sy = planet.worldY × camera.scale.y + camera.container.y
+  np.x = sx
+  np.y = sy + planet.size × camera.scale.x + 4
+```
+
+---
+
+# Animação Suave
+
+## Problema
+
+O servidor envia STATE_UPDATE a cada 1s (tick). Sem interpolação, a frota e os
+planetas saltam de posição a cada segundo.
+
+## Solução
+
+Usar o ticker do PixiJS (60fps) para interpolar a posição visual da frota:
+
+```
+A cada frame (app.ticker.add):
+  vpos.x += (targetX - vpos.x) × 0.15
+  vpos.y += (targetY - vpos.y) × 0.15
+
+targetX/targetY é atualizado a cada STATE_UPDATE que chega (1/s)
+
+O redraw() completo (órbitas, corpos, trajetória, frota) roda no ticker,
+não mais no evento STATE_UPDATE
+```
+
+Isso produz movimento contínuo e suave mesmo com atualizações esparsas do servidor.
 
 ## Paleta de Cores
 

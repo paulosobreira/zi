@@ -75,6 +75,12 @@ Responsável por:
 * cálculo orbital
 * movimentação de frotas
 
+Desenvolvimento:
+
+Usar `node --watch src/server/index.js` para auto-restart ao editar arquivos.
+O `--watch` monitora todo o grafo de módulos importados e reinicia o processo
+automaticamente.
+
 ---
 
 ## Comunicação
@@ -85,6 +91,16 @@ WebSocket (ws)
 * comandos leves
 * eventos contínuos
 
+### Payload do SYSTEM_DATA
+
+O servidor envia todos os parâmetros necessários para renderização:
+
+* `id`, `name`, `type`, `size`, `color` (identificação básica)
+* `semiMajorAxis`, `eccentricity` (parâmetros orbitais)
+* `centerX`, `centerY` (referencial espacial do sistema)
+
+O cliente nunca hardcoda dados do sistema solar — tudo vem do servidor.
+
 ---
 
 ## Frontend
@@ -94,6 +110,8 @@ JavaScript + PixiJS
 * renderização 2D vetorial
 * zoom e pan espacial
 * visão top-down do sistema
+* ticker do PixiJS (60fps) para animação suave
+* nameplates em camada separada (app.stage) com posição mundo→tela
 
 ---
 
