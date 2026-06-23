@@ -57,6 +57,27 @@ A viewport representa apenas uma janela sobre o universo.
 
 ---
 
+## Cálculo do Tamanho da Sala
+
+```
+distância máxima = semiMajorAxis × (1 + eccentricity) do corpo mais distante
+margem          = 0.25 (25%)
+roomSize        = Math.ceil((distância máxima × (1 + margem)) × 2)
+```
+
+Exemplo:
+
+```
+Netuno afélio = 4495 × 1.01           ≈ 4540 px
+Kuiper belt   ≈ 7000 px (corpo mais distante)
+roomSize      = ceil((7000 × 1.25) × 2) = 17500 px
+→ arredondar para 18000 × 18000
+```
+
+centro da sala: (roomSize / 2, roomSize / 2)
+
+---
+
 # Centro do Sistema
 
 O Sol deve permanecer no centro geométrico da sala.
@@ -97,7 +118,30 @@ O Milestone 1 deve conter:
 * Netuno
 * Cinturão de Kuiper
 
-A Nuvem de Oort poderá ser adicionada posteriormente.
+A Nuvem de Oort Ou borda dos sitema solar não sera considerada.
+
+---
+
+# Tabela de Dados do Sistema Solar
+
+Escala: 1 pixel = 1.000.000 km
+
+| Corpo | semiMajorAxis (px) | Excentricidade | Período (dias) | size (px) | Cor |
+|---|---|---|---|---|---|
+| Sol | centro | 0 | — | 40 | #FFD700 |
+| Mercúrio | 57,9 | 0,205 | 88 | 5 | #B5B5B5 |
+| Vênus | 108,2 | 0,007 | 225 | 8 | #E6B87D |
+| Terra | 149,6 | 0,017 | 365 | 8 | #4B7BE5 |
+| Marte | 227,9 | 0,093 | 687 | 6 | #E27B58 |
+| Júpiter | 778,5 | 0,049 | 4.333 | 12 | #D4A574 |
+| Saturno | 1.434 | 0,057 | 10.759 | 10 | #E8D5A3 |
+| Urano | 2.871 | 0,046 | 30.687 | 8 | #73B1B7 |
+| Netuno | 4.495 | 0,010 | 60.190 | 7 | #3E54E8 |
+
+Cinturão Principal: raio interno ~300px, raio externo ~500px
+Cinturão de Kuiper: raio interno ~4.500px, raio externo ~7.000px
+
+Os períodos reais serão acelerados no tick engine (fator ~1000x) para tornar o movimento perceptível visualmente.
 
 ---
 
@@ -205,6 +249,31 @@ O jogador deve conseguir acompanhar visualmente toda a movimentação.
 
 ---
 
+## Mecânica de Viagem
+
+```
+Fleet speed: 20 pixels / tick (20 px/s em tempo real)
+
+Cálculo de travelTime:
+  distance    = distância linear entre origem e destino (em pixels)
+  travelTime  = distance / fleetSpeed  (em ticks)
+
+Animação da trajetória:
+  - A frota move-se em linha reta da posição orbital de origem
+    até a posição orbital do destino (ambos se movem durante a viagem)
+  - A cada tick, a posição da frota é interpolada linearmente:
+    progresso    = (tickAtual - departureTime) / (arrivalTime - departureTime)
+    posFrota     = lerp(posOrigem(t), posDestino(t), progresso)
+  - Uma linha de trajetória é desenhada do ponto de origem ao destino
+
+Ao chegar:
+  - Fleet.state = ORBIT
+  - Fleet.locationId = destinationId
+  - Servidor emite evento FLEET_ARRIVED para o cliente
+```
+
+---
+
 # Câmera
 
 A câmera deve suportar:
@@ -214,6 +283,30 @@ A câmera deve suportar:
 * pan com botão do meio
 
 A câmera pode navegar livremente pela sala.
+
+---
+
+## Comportamento do Zoom
+
+```
+minScale      = 0.1   (vê o sistema inteiro)
+maxScale      = 8.0   (vê detalhes de um planeta)
+defaultScale  = calculado para caber o sistema na viewport
+incremento    = 10% por passo do scroll
+```
+
+O zoom deve ser centrado na posição atual do mouse (zoom to cursor).
+
+---
+
+## Comportamento do Pan
+
+```
+botão direito  → arrasta a viewport
+botão do meio  → arrasta a viewport (alternativo)
+scroll + Ctrl  → mesmo que botão do meio
+sem limites    → a câmera pode navegar além da sala
+```
 
 ---
 
@@ -227,6 +320,7 @@ Ao clicar:
 
 * a câmera centraliza na posição atual da frota
 * o nível de zoom é preservado
+* animação suave de transição (ex: 300ms ease-out)
 
 ---
 
@@ -240,12 +334,50 @@ Representação mínima:
 * Órbitas → linhas elípticas
 * Cinturões → anéis pontilhados
 
-Sem:
+Sem texturas, sombras, iluminação, ou efeitos visuais complexos.
 
-* texturas
-* sombras
-* iluminação
-* efeitos visuais complexos
+Exceção: glow sutil no Sol (círculo com gradiente radial + blur).
+
+---
+
+# Identidade Visual
+
+## Paleta de Cores
+
+| Elemento | Cor | Descrição |
+|---|---|---|
+| Fundo | #0A0A1A | Azul marinho escuro (espaço) |
+| Órbitas | #2A2A4A | Elipses das trajetórias |
+| Trajetória da frota | #00FF88 | Linha de viagem ativa |
+| Sol | #FFD700 | Dourado com efeito glow |
+| Mercúrio | #B5B5B5 | Cinza |
+| Vênus | #E6B87D | Amarelo pastel |
+| Terra | #4B7BE5 | Azul |
+| Marte | #E27B58 | Vermelho alaranjado |
+| Júpiter | #D4A574 | Ocre |
+| Saturno | #E8D5A3 | Bege |
+| Urano | #73B1B7 | Ciano |
+| Netuno | #3E54E8 | Azul escuro |
+| Cinturões | #8B7355 | Marrom claro |
+| Frota (jogador) | #00FF88 | Triângulo verde neon |
+
+## Tamanhos dos Corpos
+
+| Corpo | Raio visual (px) |
+|---|---|
+| Sol | 40 |
+| Mercúrio | 5 |
+| Vênus | 8 |
+| Terra | 8 |
+| Marte | 6 |
+| Júpiter | 12 |
+| Saturno | 10 |
+| Urano | 8 |
+| Netuno | 7 |
+
+## Frota
+
+Triângulo equilátero com 4px de lado, cor #00FF88.
 
 ---
 

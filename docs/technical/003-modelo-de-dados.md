@@ -29,10 +29,12 @@ Serve como base para:
 * name
 * type
 * systemId
-* orbitalRadius
-* orbitalPeriod
-* orbitalPhase
-* size
+* semiMajorAxis   (semieixo maior da órbita elíptica, em pixels)
+* eccentricity    (excentricidade: 0 = circular, 0 < e < 1)
+* orbitalPeriod   (período orbital em ticks do servidor; 1 tick = 1s real)
+* orbitalPhase    (fase inicial em radianos, 0 = periélio)
+* size            (raio visual em pixels)
+* color           (cor em hex, ex: "#FFD700")
 
 ---
 
@@ -54,10 +56,12 @@ Serve como base para:
 "name": "Marte",
 "type": "PLANET",
 "systemId": "sol",
-"orbitalRadius": 228,
+"semiMajorAxis": 227.9,
+"eccentricity": 0.093,
 "orbitalPeriod": 687,
 "orbitalPhase": 0.25,
-"size": 0.53
+"size": 6,
+"color": "#E27B58"
 }
 
 ---
@@ -207,6 +211,21 @@ Estado global do universo.
 "fleets": [],
 "movements": []
 }
+
+---
+
+# Cálculo de Posição Orbital
+
+Dado um OrbitalBody com parâmetros elípticos, a posição em um tick t é:
+
+```
+ângulo θ(t) = (2π × t / orbitalPeriod + orbitalPhase) mod 2π
+raio r(θ)   = semiMajorAxis × (1 - eccentricity²) / (1 + eccentricity × cos(θ))
+
+posição no plano:
+  x = centroSistemaX + r × cos(θ)
+  y = centroSistemaY + r × sin(θ)
+```
 
 ---
 

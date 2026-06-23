@@ -54,21 +54,60 @@ A partir deste momento, todo objeto orbital é representado como:
 
 ## HELLO
 
-Cliente inicia conexão
+Cliente inicia conexão.
 
-### Cliente
+Se o cliente já possui um playerId de sessão anterior, deve enviá-lo para reentrar no jogo.
+
+### Cliente (primeira conexão)
 
 {
 "type": "COMMAND",
 "action": "HELLO"
 }
 
-### Servidor
+### Cliente (reconexão)
+
+{
+"type": "COMMAND",
+"action": "HELLO",
+"payload": {
+"playerId": "player-1"
+}
+}
+
+### Servidor (sucesso)
 
 {
 "type": "WELCOME",
 "playerId": "player-1"
 }
+
+### Servidor (playerId inválido na reconexão)
+
+{
+"type": "WELCOME",
+"playerId": "player-2"   /* servidor cria novo player */
+}
+
+---
+
+## HEARTBEAT
+
+Servidor envia PING a cada 30 segundos. Cliente deve responder PONG.
+
+### Servidor → Cliente
+
+{
+"type": "PING"
+}
+
+### Cliente → Servidor
+
+{
+"type": "PONG"
+}
+
+Se o servidor não receber PONG após 3 PINGs consecutivos, a conexão é considerada perdida.
 
 ---
 
@@ -182,6 +221,17 @@ Formato padrão:
 "code": "INVALID_ACTION",
 "message": "Ação inválida"
 }
+
+## Códigos de Erro
+
+| Código | Significado |
+|---|---|
+| INVALID_ACTION | Ação não reconhecida |
+| INVALID_DESTINATION | Destino não encontrado ou inválido |
+| FLEET_BUSY | Frota já está em viagem |
+| FLEET_NOT_FOUND | Frota não pertence ao jogador |
+| PLAYER_NOT_FOUND | playerId inválido na reconexão |
+| RATE_LIMIT | Muitos comandos em curto período |
 
 ---
 
