@@ -140,6 +140,12 @@ Intervalo inicial:
 
 1 segundo
 
+A cada tick, o tempo simulado avança:
+
+simulatedTime += 1000   // fator de aceleração 1000x
+
+Isto significa que 1 tick real (1s) equivale a ~16,7 minutos simulados. O fator poderá ser ajustado por milestone.
+
 Responsável por:
 
 * atualizar órbitas

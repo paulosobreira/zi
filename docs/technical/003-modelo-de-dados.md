@@ -31,7 +31,7 @@ Serve como base para:
 * systemId
 * semiMajorAxis   (semieixo maior da órbita elíptica, em pixels)
 * eccentricity    (excentricidade: 0 = circular, 0 < e < 1)
-* orbitalPeriod   (período orbital em ticks do servidor; 1 tick = 1s real)
+* orbitalPeriod   (período orbital em dias terrestres; usado na fórmula como orbitalPeriod × 86400 para segundos simulados)
 * orbitalPhase    (fase inicial em radianos, 0 = periélio)
 * size            (raio visual em pixels)
 * color           (cor em hex, ex: "#FFD700")

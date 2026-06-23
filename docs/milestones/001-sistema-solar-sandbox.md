@@ -176,6 +176,26 @@ Mesmo sem interação do jogador:
 
 O movimento orbital pode ser acelerado em relação ao tempo real para melhorar a percepção visual.
 
+## Aceleração Temporal
+
+A simulação utiliza um tempo interno (simulatedTime) que avança mais rápido que o tempo real:
+
+```
+a cada tick de 1s real:
+  simulatedTime += 1000
+```
+
+O fator de aceleração é 1000x (1s real = ~16,7min simulado). Isto permite que órbitas lentas (Netuno: 60.190 dias) sejam perceptíveis.
+
+O cálculo de posição orbital usa simulatedTime no lugar do tick:
+
+```
+θ(t) = (2π × simulatedTime / (orbitalPeriodDias × 86400) + orbitalPhase) mod 2π
+r(θ) = semiMajorAxis × (1 - eccentricity²) / (1 + eccentricity × cos(θ))
+```
+
+Onde orbitalPeriodDias é o período da tabela em dias terrestres. O fator de aceleração poderá ser ajustado por milestone.
+
 ---
 
 # Frota Inicial
@@ -222,10 +242,14 @@ Exemplos:
 
 Ao clicar em um OrbitalBody deve ser exibido um menu contextual.
 
+Implementação: HTML overlay (`<div id="contextMenu">`) sobreposto ao canvas PixiJS.
+
 Opções iniciais:
 
 * Viajar para órbita
 * Cancelar
+
+Posicionamento: nas coordenadas do clique (mouseX, mouseY), ajustado automaticamente para não ultrapassar a borda da viewport.
 
 ---
 
@@ -332,7 +356,9 @@ Representação mínima:
 * Planetas → círculos
 * Frota → triângulo
 * Órbitas → linhas elípticas
-* Cinturões → anéis pontilhados
+* Cinturões → círculos individuais (partículas)
+  - Cinturão Principal: ~60 partículas de 2-3px, distribuição aleatória entre raio 300-500px, cor #8B7355 com alpha 0.3 a 0.8, estáticas
+  - Cinturão de Kuiper: ~120 partículas de 2px, distribuição aleatória entre raio 4.500-7.000px, cor #8B7355 com alpha 0.2 a 0.6, estáticas
 
 Sem texturas, sombras, iluminação, ou efeitos visuais complexos.
 

@@ -89,6 +89,15 @@ Se o cliente já possui um playerId de sessão anterior, deve enviá-lo para ree
 "playerId": "player-2"   /* servidor cria novo player */
 }
 
+### Nota
+
+Imediatamente após enviar WELCOME, o servidor empurra automaticamente:
+
+  SYSTEM_DATA  → estado atual do sistema solar
+  FLEET_DATA   → estado da frota do jogador
+
+O cliente não precisa solicitar GET_SYSTEM ou GET_FLEET.
+
 ---
 
 ## HEARTBEAT
@@ -202,13 +211,53 @@ Inicia movimentação.
 
 ## STATE_UPDATE
 
-Atualização periódica do universo.
+Atualização periódica do universo, enviada a cada tick (1s) para todos os clientes conectados. Contém posições calculadas de todos os corpos e frotas.
 
-Pode conter:
+```
+{
+  "type": "STATE_UPDATE",
+  "payload": {
+    "tick": 1234,
+    "simulatedTime": 1234000,
+    "orbitalBodies": {
+      "sun":     { "x": 9000, "y": 9000 },
+      "mercury": { "x": 9057, "y": 8950 },
+      "venus":   { "x": 9100, "y": 8920 },
+      "earth":   { "x": 9140, "y": 8890 },
+      "mars":    { "x": 9200, "y": 8860 },
+      "jupiter": { "x": 9700, "y": 8700 },
+      "saturn":  { "x": 10000, "y": 8500 },
+      "uranus":  { "x": 11000, "y": 8200 },
+      "neptune": { "x": 12000, "y": 8000 }
+    },
+    "fleets": {
+      "fleet-1": {
+        "state": "ORBIT",
+        "locationId": "mars",
+        "x": 9205,
+        "y": 8865
+      }
+    },
+    "movements": [
+      {
+        "id": "move-1",
+        "fleetId": "fleet-1",
+        "originId": "mars",
+        "destinationId": "jupiter",
+        "originX": 9200,
+        "originY": 8860,
+        "destX": 9700,
+        "destY": 8700,
+        "progress": 0.35,
+        "x": 9375,
+        "y": 8804
+      }
+    ]
+  }
+}
+```
 
-* fleets
-* orbitalBodies
-* movements
+O cliente deve interpolar visualmente a posição entre STATE_UPDATES para obter animação suave em 60fps.
 
 ---
 
