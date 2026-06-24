@@ -126,22 +126,33 @@ A Nuvem de Oort e a borda do sistema solar não serão consideradas.
 
 Escala: 1 pixel = 1.000.000 km
 
-| Corpo | semiMajorAxis (px) | Excentricidade | Período (dias) | size (px) | Cor |
-|---|---|---|---|---|---|
-| Sol | centro | 0 | — | 40 | #FFD700 |
-| Mercúrio | 57,9 | 0,205 | 88 | 5 | #B5B5B5 |
-| Vênus | 108,2 | 0,007 | 225 | 8 | #E6B87D |
-| Terra | 149,6 | 0,017 | 365 | 8 | #4B7BE5 |
-| Marte | 227,9 | 0,093 | 687 | 6 | #E27B58 |
-| Júpiter | 778,5 | 0,049 | 4.333 | 12 | #D4A574 |
-| Saturno | 1.434 | 0,057 | 10.759 | 10 | #E8D5A3 |
-| Urano | 2.871 | 0,046 | 30.687 | 8 | #73B1B7 |
-| Netuno | 4.495 | 0,010 | 60.190 | 7 | #3E54E8 |
+| Corpo | semiMajorAxis (px) | Excentricidade | Período (dias) | size (px) | Cor | Tipo |
+|---|---|---|---|---|---|---|
+| Sol | centro | 0 | — | 40 | #FFD700 | STAR |
+| Mercúrio | 57,9 | 0,205 | 88 | 5 | #B5B5B5 | SOLID |
+| Vênus | 108,2 | 0,007 | 225 | 8 | #E6B87D | SOLID |
+| Terra | 149,6 | 0,017 | 365 | 8 | #4B7BE5 | SOLID |
+| Marte | 227,9 | 0,093 | 687 | 6 | #E27B58 | SOLID |
+| Júpiter | 778,5 | 0,049 | 4.333 | 12 | #D4A574 | GAS |
+| Saturno | 1.434 | 0,057 | 10.759 | 10 | #E8D5A3 | GAS |
+| Urano | 2.871 | 0,046 | 30.687 | 8 | #73B1B7 | GAS |
+| Netuno | 4.495 | 0,010 | 60.190 | 7 | #3E54E8 | GAS |
 
-Cinturão Principal: raio interno ~300px, raio externo ~500px
-Cinturão de Kuiper: raio interno ~4.500px, raio externo ~7.000px
+Cinturão Principal: raio interno ~300px, raio externo ~500px (type: ASTEROID_BELT)
+Cinturão de Kuiper: raio interno ~4.500px, raio externo ~7.000px (type: ASTEROID_BELT)
 
 Os períodos reais serão acelerados no tick engine (fator ~1000x) para tornar o movimento perceptível visualmente.
+
+---
+
+# Classificação de Planetas
+
+| Tipo | Descrição | Mineração futura |
+|------|-----------|------------------|
+| SOLID | Planeta rochoso com superfície sólida (Mercúrio, Vênus, Terra, Marte) | Mineração terrestre (superfície) |
+| GAS | Planeta gasoso sem superfície sólida (Júpiter, Saturno, Urano, Netuno) | Pode possuir anéis (RING_SYSTEM) que permitem mineração de asteroides |
+
+Apenas planetas GAS podem ter anéis. A presença ou ausência de anéis é definida por OrbitalBody do tipo RING_SYSTEM vinculado via `parentId`.
 
 ---
 
@@ -228,15 +239,15 @@ O objetivo é apenas demonstrar visualmente que ela está estacionada naquele co
 
 # Navegação
 
-O jogador seleciona um destino clicando diretamente sobre um OrbitalBody.
+O jogador seleciona um destino clicando diretamente sobre um OrbitalBody ou sobre as partículas visuais de um cinturão.
 
 Exemplos:
 
 * Marte
 * Júpiter
 * Saturno
-* Cinturão Principal
-* Cinturão de Kuiper
+* Cinturão Principal (clicar em qualquer partícula)
+* Cinturão de Kuiper (clicar em qualquer partícula)
 
 ---
 
@@ -246,12 +257,23 @@ Ao clicar em um OrbitalBody deve ser exibido um menu contextual.
 
 Implementação: HTML overlay (`<div id="contextMenu">`) sobreposto ao canvas PixiJS.
 
-Opções iniciais:
-
-* Viajar para órbita
-* Cancelar
-
 Posicionamento: nas coordenadas do clique (mouseX, mouseY), ajustado automaticamente para não ultrapassar a borda da viewport.
+
+## Opções por tipo de corpo
+
+As opções variam conforme o tipo do corpo clicado e o estado da frota:
+
+| Corpo | Frota não está na órbita | Frota já está na órbita |
+|-------|--------------------------|--------------------------|
+| PLANET (SOLID) | Viajar para órbita | Minerar planeta (futuro) |
+| PLANET (GAS, sem anéis) | Viajar para órbita | (sem ação extra) |
+| PLANET (GAS, com anéis) | Viajar para órbita | Minerar asteroides (futuro) |
+| ASTEROID_BELT | Viajar para órbita | Iniciar mineração (futuro) |
+| RING_SYSTEM | (sem menu — visual apenas) | (sem menu) |
+
+Opção "Cancelar" presente em todos os menus.
+
+Opções de mineração são placeholders: aparecem no menu mas não executam ação.
 
 ---
 
@@ -372,9 +394,12 @@ Representação mínima:
 * Planetas → círculos
 * Frota → triângulo
 * Órbitas → linhas elípticas
-* Cinturões → círculos individuais (partículas)
-  - Cinturão Principal: ~60 partículas de 2-3px, distribuição aleatória entre raio 300-500px, cor #8B7355 com alpha 0.3 a 0.8, estáticas
-  - Cinturão de Kuiper: ~120 partículas de 2px, distribuição aleatória entre raio 4.500-7.000px, cor #8B7355 com alpha 0.2 a 0.6, estáticas
+* Cinturões → círculos individuais (partículas geradas no cliente, sem representação no modelo de dados)
+  - Cinturão Principal: ~60 partículas de 2-3px, distribuição aleatória entre raio 300-500px, cor #8B7355 com alpha 0.3 a 0.8
+  - Cinturão de Kuiper: ~120 partículas de 2px, distribuição aleatória entre raio 4.500-7.000px, cor #8B7355 com alpha 0.2 a 0.6
+  - Em zoom baixo: partículas estáticas (sempre visíveis e clicáveis)
+  - Em zoom alto: animação suave — asteroides girando e se movendo ao longo da órbita do cinturão
+* Anéis de Saturno → mesmo sistema de partículas dos cinturões, visíveis apenas em zoom elevado (LOD)
 
 Sem texturas, sombras, iluminação, ou efeitos visuais complexos.
 
@@ -386,7 +411,7 @@ Exceção: glow sutil no Sol (círculo com gradiente radial + blur).
 
 ## Nameplates
 
-Cada planeta deve exibir um rótulo com seu nome (nameplate) sobreposto ao sistema solar.
+Cada planeta e cinturão deve exibir um rótulo com seu nome (nameplate) sobreposto ao sistema solar.
 
 Requisitos:
 
@@ -474,6 +499,62 @@ Triângulo equilátero com 4px de lado, cor #00FF88.
 
 ---
 
+## Cinturões de Asteroides
+
+Ambos os cinturões (Principal e Kuiper) compartilham o mesmo comportamento. A diferença é apenas a órbita em que estão posicionados no sistema solar/sala.
+
+### Modelo
+
+- type: ASTEROID_BELT
+- orbitalPeriod = 0 (posição fixa no centro do sistema)
+- semiMajorAxis = 0 (não orbita nada)
+- As partículas visuais são geradas no cliente e **não possuem representação individual no modelo de dados**
+
+### Cinturão Principal
+
+- Localização: entre Marte e Júpiter
+- Raio interno: ~300px, raio externo: ~500px
+- ~60 partículas, 2-3px, cor #8B7355, alpha 0.3-0.8
+
+### Cinturão de Kuiper
+
+- Localização: borda do sistema solar
+- Raio interno: ~4.500px, raio externo: ~7.000px
+- ~120 partículas, 2px, cor #8B7355, alpha 0.2-0.6
+- Mesmo comportamento do Principal
+
+### Interação
+
+- As partículas são clicáveis em qualquer nível de zoom
+- Ao clicar em uma partícula: menu de contexto com "Viajar para órbita"
+- A frota viaja para um ponto próximo à posição clicada
+- Ao chegar: a frota segue a órbita do cinturão
+- Não há colisão entre frota e asteroides
+- Quando já estiver na órbita do cinturão: menu com opção "Iniciar mineração" (placeholder — sem ação)
+
+## Anéis de Saturno
+
+Região especial associada ao planeta Saturno (planeta GAS com anéis).
+
+### Modelo
+
+- type: RING_SYSTEM
+- Vinculado a Saturno via parentId = "saturn"
+- Apenas representação visual (estética)
+- Não é um corpo independente — acompanha Saturno
+
+### Renderização
+
+- Mesmo sistema de partículas dos cinturões de asteroides
+- Partículas visíveis apenas em zoom elevado (LOD)
+- Em zoom baixo: invisível (apenas Saturno é renderizado)
+- Sem interação direta: não é clicável, não é navegável
+
+### Mineração futura
+
+- Quando a frota estiver na órbita de um planeta GAS com anéis (ex: Saturno), o menu de contexto exibe "Minerar asteroides"
+- A mecânica será equivalente à mineração de asteroides dos cinturões
+
 # Critérios de Aceitação Visuais
 
 Ao iniciar o jogo deve ser possível:
@@ -481,10 +562,15 @@ Ao iniciar o jogo deve ser possível:
 * visualizar todas as órbitas
 * visualizar planetas se movendo
 * visualizar a frota orbitando
+* visualizar partículas animadas dos cinturões de asteroides
+* visualizar anéis de Saturno (partículas visíveis ao aplicar zoom)
+* clicar em partículas do cinturão para selecionar como destino
 * navegar pelo sistema usando zoom e pan
 * selecionar um destino
 * iniciar uma viagem
 * acompanhar a transferência orbital
 * centralizar a câmera na frota
+* menu de contexto com opções condicionais ao tipo de corpo e estado da frota
+* opção de mineração no menu (sem ação — preparação futura)
 
 O sistema deve transmitir a sensação de estar observando um Sistema Solar vivo em escala reduzida.

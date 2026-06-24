@@ -36,6 +36,7 @@ A partir deste momento, todo objeto orbital é representado como:
 
 * bodyId
 * bodyType
+* planetType (opcional — "SOLID" | "GAS"; presente apenas quando bodyType = PLANET)
 
 ---
 
@@ -45,8 +46,8 @@ A partir deste momento, todo objeto orbital é representado como:
 * PLANET
 * MOON
 * ASTEROID_BELT
-* COMET_REGION
 * RING_SYSTEM
+* ~~COMET_REGION~~ (reservado)
 
 ---
 
@@ -134,7 +135,8 @@ Retorna estado do sistema atual.
 "orbitalBodies": [
 {
 "id": "mars",
-"type": "PLANET"
+"type": "PLANET",
+"planetType": "SOLID"
 }
 ]
 }

@@ -19,7 +19,7 @@ Serve como base para:
 * Luas
 * Asteroides
 * Cinturões
-* Anéis planetários (futuro)
+* Anéis planetários
 
 ---
 
@@ -35,6 +35,8 @@ Serve como base para:
 * orbitalPhase    (fase inicial em radianos, 0 = periélio)
 * size            (raio visual em pixels)
 * color           (cor em hex, ex: "#FFD700")
+* planetType      (opcional — "SOLID" | "GAS"; aplicável apenas quando type = PLANET)
+* parentId        (opcional — id do corpo pai; usado por RING_SYSTEM para vincular ao planeta)
 
 ---
 
@@ -43,18 +45,19 @@ Serve como base para:
 * STAR
 * PLANET
 * MOON
-* ASTEROID_BELT
-* COMET_REGION
-* RING_SYSTEM
+* ASTEROID_BELT   (cinturão de asteroides — Principal e Kuiper; orbitalPeriod = 0, posição fixa)
+* RING_SYSTEM     (anéis planetários, vinculado a planeta GAS via parentId)
+* ~~COMET_REGION~~ (reservado para uso futuro)
 
 ---
 
-## Exemplo
+## Exemplo (planeta sólido)
 
 {
 "id": "mars",
 "name": "Marte",
 "type": "PLANET",
+"planetType": "SOLID",
 "systemId": "sol",
 "semiMajorAxis": 227.9,
 "eccentricity": 0.093,
@@ -62,6 +65,38 @@ Serve como base para:
 "orbitalPhase": 0.25,
 "size": 6,
 "color": "#E27B58"
+}
+
+## Exemplo (planeta gasoso com anéis)
+
+{
+"id": "saturn",
+"name": "Saturno",
+"type": "PLANET",
+"planetType": "GAS",
+"systemId": "sol",
+"semiMajorAxis": 1434,
+"eccentricity": 0.057,
+"orbitalPeriod": 10759,
+"orbitalPhase": 0.0,
+"size": 10,
+"color": "#E8D5A3"
+}
+
+## Exemplo (anéis — vinculado a Saturno via parentId)
+
+{
+"id": "saturn-rings",
+"name": "Anéis de Saturno",
+"type": "RING_SYSTEM",
+"parentId": "saturn",
+"systemId": "sol",
+"semiMajorAxis": 0,
+"eccentricity": 0,
+"orbitalPeriod": 0,
+"orbitalPhase": 0,
+"size": 18,
+"color": "#C8B896"
 }
 
 ---
