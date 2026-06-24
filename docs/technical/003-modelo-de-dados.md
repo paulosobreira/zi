@@ -37,6 +37,8 @@ Serve como base para:
 * color           (cor em hex, ex: "#FFD700")
 * planetType      (opcional — "SOLID" | "GAS"; aplicável apenas quando type = PLANET)
 * parentId        (opcional — id do corpo pai; usado por RING_SYSTEM para vincular ao planeta)
+* beltInnerRadius (opcional — raio interno do cinturão em pixels; aplicável apenas quando type = ASTEROID_BELT)
+* beltOuterRadius (opcional — raio externo do cinturão em pixels; aplicável apenas quando type = ASTEROID_BELT)
 
 ---
 
@@ -98,6 +100,42 @@ Serve como base para:
 "size": 18,
 "color": "#C8B896"
 }
+
+## Exemplo (cinturão de asteroides)
+
+{
+"id": "main-belt",
+"name": "Cinturão Principal",
+"type": "ASTEROID_BELT",
+"systemId": "sol",
+"semiMajorAxis": 0,
+"eccentricity": 0,
+"orbitalPeriod": 0,
+"orbitalPhase": 0,
+"size": 0,
+"color": "#8B7355",
+"beltInnerRadius": 300,
+"beltOuterRadius": 500
+}
+
+---
+
+# IDs das Entidades do Sistema Solar
+
+| ID | Nome | Type |
+|----|------|------|
+| sun | Sol | STAR |
+| mercury | Mercúrio | PLANET |
+| venus | Vênus | PLANET |
+| earth | Terra | PLANET |
+| mars | Marte | PLANET |
+| main-belt | Cinturão Principal | ASTEROID_BELT |
+| jupiter | Júpiter | PLANET |
+| saturn | Saturno | PLANET |
+| saturn-rings | Anéis de Saturno | RING_SYSTEM |
+| uranus | Urano | PLANET |
+| neptune | Netuno | PLANET |
+| kuiper-belt | Cinturão de Kuiper | ASTEROID_BELT |
 
 ---
 
@@ -207,16 +245,31 @@ Representa uma viagem entre dois pontos orbitais.
 * destinationId
 * departureSimulatedTime
 * arrivalSimulatedTime
+* arrivalX          (opcional — coordenada X de chegada; usado quando destino é cinturão)
+* arrivalY          (opcional — coordenada Y de chegada)
 
 ---
 
-## Exemplo
+## Exemplo (planeta → planeta)
 
 {
 "id": "move-1",
 "fleetId": "fleet-1",
 "originId": "mars",
 "destinationId": "jupiter",
+"departureSimulatedTime": 50000,
+"arrivalSimulatedTime": 90000
+}
+
+## Exemplo (planeta → cinturão)
+
+{
+"id": "move-2",
+"fleetId": "fleet-1",
+"originId": "mars",
+"destinationId": "main-belt",
+"arrivalX": 8500,
+"arrivalY": 9200,
 "departureSimulatedTime": 50000,
 "arrivalSimulatedTime": 90000
 }

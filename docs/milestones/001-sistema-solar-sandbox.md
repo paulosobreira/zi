@@ -395,11 +395,15 @@ Representação mínima:
 * Frota → triângulo
 * Órbitas → linhas elípticas
 * Cinturões → círculos individuais (partículas geradas no cliente, sem representação no modelo de dados)
-  - Cinturão Principal: ~60 partículas de 2-3px, distribuição aleatória entre raio 300-500px, cor #8B7355 com alpha 0.3 a 0.8
-  - Cinturão de Kuiper: ~120 partículas de 2px, distribuição aleatória entre raio 4.500-7.000px, cor #8B7355 com alpha 0.2 a 0.6
-  - Em zoom baixo: partículas estáticas (sempre visíveis e clicáveis)
-  - Em zoom alto: animação suave — asteroides girando e se movendo ao longo da órbita do cinturão
-* Anéis de Saturno → mesmo sistema de partículas dos cinturões, visíveis apenas em zoom elevado (LOD)
+  - Geração: para cada partícula, sortear `angulo ∈ [0, 2π]` e `raio ∈ [beltInnerRadius, beltOuterRadius]`. Posição inicial: `x = centerX + cos(angulo) × raio`, `y = centerY + sin(angulo) × raio`. Cada partícula armazenada como `{ graphic, angulo, raio }`.
+  - Cinturão Principal: ~60 partículas de 2-3px, cor #8B7355 com alpha 0.3 a 0.8
+  - Cinturão de Kuiper: ~120 partículas de 2px, cor #8B7355 com alpha 0.2 a 0.6
+  - Animação (aplicada a cada frame do ticker PixiJS, 60fps): `angulo += angularSpeed × deltaTime`; `pos = center + raio × (cos(angulo), sin(angulo))`. `angularSpeed = 0.0002 rad/ms` (≈ 1 volta a cada ~31s). Direção: anti-horário.
+  - Camera scale < 2.0: partículas estáticas (posição fixa, sem update de ângulo). Camera scale >= 2.0: animação ativa.
+  - Partículas sempre visíveis e clicáveis em qualquer zoom.
+* Anéis de Saturno → mesmo sistema de partículas, geradas com offset RELATIVO a Saturno: `raio ∈ [5, 15]px`, ~40 partículas, 1-2px, cor #C8B896, alpha 0.2-0.6
+  - Container PIXI filho do container de Saturno (acompanha o planeta automaticamente)
+  - Camera scale < 3.0: invisível. Camera scale >= 3.0: visível.
 
 Sem texturas, sombras, iluminação, ou efeitos visuais complexos.
 
@@ -525,12 +529,58 @@ Ambos os cinturões (Principal e Kuiper) compartilham o mesmo comportamento. A d
 
 ### Interação
 
-- As partículas são clicáveis em qualquer nível de zoom
-- Ao clicar em uma partícula: menu de contexto com "Viajar para órbita"
-- A frota viaja para um ponto próximo à posição clicada
-- Ao chegar: a frota segue a órbita do cinturão
-- Não há colisão entre frota e asteroides
-- Quando já estiver na órbita do cinturão: menu com opção "Iniciar mineração" (placeholder — sem ação)
+#### Detecção de Clique
+
+O clique em um cinturão NÃO utiliza partículas individuais como alvo. O hit-test é contra a região anular do cinturão:
+
+1. Jogador clica em qualquer ponto da tela
+2. Cliente converte a coordenada do clique para o espaço do mundo (worldX, worldY)
+3. Calcula a distância do centro do sistema: `dist = √((worldX - centerX)² + (worldY - centerY)²)`
+4. Para cada cinturão no sistema, verifica: `beltInnerRadius <= dist <= beltOuterRadius`
+5. Se houver match: exibe menu de contexto com o bodyId do cinturão correspondente
+6. Se o clique estiver na região de dois cinturões (não ocorre no sistema atual), o mais interno vence
+
+Não há colisão entre frota e asteroides.
+
+#### Cálculo do Ponto de Chegada
+
+Quando a frota viaja para um cinturão, o destino é calculado pelo servidor:
+
+1. Cliente envia MOVE_FLEET com:
+   - `destination.bodyId` = id do cinturão
+   - `arrivalPosition.x/y` = coordenada do clique no mundo
+
+2. Servidor recebe e calcula:
+   - `angle = atan2(arrivalY - centerY, arrivalX - centerX)`
+   - `midRadius = (beltInnerRadius + beltOuterRadius) / 2`
+   - `destX = centerX + cos(angle) × midRadius`
+   - `destY = centerY + sin(angle) × midRadius`
+
+3. Movement armazena `arrivalX`, `arrivalY` com as coordenadas calculadas
+4. A frota viaja para (destX, destY) usando a mesma mecânica de viagem (curva bezier)
+
+#### Órbita da Frota no Cinturão
+
+Após chegar, a frota orbita o Sol rigorosamente como um planeta, seguindo a órbita do cinturão:
+
+```
+Fleet.state = ORBIT
+Fleet.locationId = "main-belt" (ou "kuiper-belt")
+
+anguloOrbital(t) = (2π × simulatedTime / (periodoOrbital × 86400) + faseInicial) mod 2π
+
+posFrota.x = centerX + midRadius × cos(anguloOrbital)
+posFrota.y = centerY + midRadius × sin(anguloOrbital)
+```
+
+Onde:
+- `midRadius` = `(beltInnerRadius + beltOuterRadius) / 2` (calculado na chegada)
+- `periodoOrbital` = período do planeta mais próximo: Marte (687d) para o Principal, Netuno (60.190d) para Kuiper
+- `faseInicial` = ângulo do ponto de chegada (para a frota começar de onde chegou)
+
+Isso garante que a frota mantenha-se dentro da região do cinturão orbitando o Sol com a mesma mecânica orbital dos planetas.
+
+Quando já estiver na órbita do cinturão: menu com opção "Iniciar mineração" (placeholder — sem ação).
 
 ## Anéis de Saturno
 
@@ -546,8 +596,13 @@ Região especial associada ao planeta Saturno (planeta GAS com anéis).
 ### Renderização
 
 - Mesmo sistema de partículas dos cinturões de asteroides
-- Partículas visíveis apenas em zoom elevado (LOD)
-- Em zoom baixo: invisível (apenas Saturno é renderizado)
+- Partículas geradas com offset RELATIVO a Saturno:
+  - Container PIXI filho do container de Saturno (herda a transformação do planeta)
+  - `raio ∈ [5, 15]px` (distância do centro de Saturno)
+  - `angulo ∈ [0, 2π]` sorteado, ~40 partículas, 1-2px, cor #C8B896, alpha 0.2-0.6
+  - Animação: mesma `angularSpeed` dos cinturões (0.0002 rad/ms), rotação no eixo Z
+  - Posição absoluta calculada automaticamente por ser filho de Saturno
+- LOD: `camera.scale < 3.0` → invisível; `camera.scale >= 3.0` → visível
 - Sem interação direta: não é clicável, não é navegável
 
 ### Mineração futura
