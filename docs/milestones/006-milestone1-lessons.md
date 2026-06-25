@@ -201,6 +201,16 @@
 | **Solução** | Remover o listener duplicado |
 | **Prevenção** | Ao reescrever blocos de código, verificar listeners antigos que podem ter ficado órfãos |
 
+## 7.5 Callback anulado por hide() antes de ser invocado
+
+| | |
+|---|---|
+| **Sintoma** | Clicar em "Viajar para órbita" não disparava nenhuma ação; nenhum erro no console |
+| **Causa** | O click handler chamava `hide()` antes de verificar `currentAction`. `hide()` faz `currentAction = null` como cleanup. O `if (currentAction)` subsequente avaliava `null` e o callback nunca era invocado |
+| **Código problemático** | `hide(); if (currentAction) currentAction(action, body)` |
+| **Solução** | Salvar a referência antes de chamar `hide()`: `const savedAction = currentAction; hide(); if (savedAction) savedAction(action, body)` |
+| **Prevenção** | Sempre que uma função de cleanup anular uma variável de closure, salvar a referência em variável local antes de chamar o cleanup. O efeito colateral de `hide()` não é óbvio no ponto de chamada |
+
 ---
 
 # 8. Melhorias Pós-Correção
