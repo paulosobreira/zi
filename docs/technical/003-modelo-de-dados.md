@@ -101,6 +101,8 @@ Serve como base para:
 "color": "#C8B896"
 }
 
+**Nota:** O `size` do RING_SYSTEM (18) não é usado para renderização; as partículas dos anéis são geradas em 14 bandas elípticas de `1.14 × saturn.size` a `2.23 × saturn.size`.
+
 ## Exemplo (cinturão de asteroides)
 
 {
@@ -203,11 +205,16 @@ Representa uma frota de naves.
 
 ## Campos
 
-* id
+* id (igual a playerId na POC)
 * ownerId
 * locationType
 * locationId
 * state
+* orbitRadius (opcional — raio da órbita local ao redor do planeta: `body.size + 5`)
+* orbitPeriod (opcional — período da órbita local em ms: `15000` para planetas)
+* orbitPhase (opcional — fase inicial da órbita local em radianos)
+* orbitX (opcional — coordenada X fixa para cinturão)
+* orbitY (opcional — coordenada Y fixa para cinturão)
 
 ---
 
@@ -219,15 +226,32 @@ Representa uma frota de naves.
 
 ---
 
-## Exemplo
+## Exemplo (em planeta)
 
 {
-"id": "fleet-1",
+"id": "player-1",
 "ownerId": "player-1",
 "locationType": "ORBITAL_BODY",
 "locationId": "mars",
-"state": "ORBIT"
+"state": "ORBIT",
+"orbitRadius": 13,
+"orbitPeriod": 15000,
+"orbitPhase": 2.1834
 }
+
+## Exemplo (em cinturão)
+
+{
+"id": "player-1",
+"ownerId": "player-1",
+"locationType": "ORBITAL_BODY",
+"locationId": "main-belt",
+"state": "ORBIT",
+"orbitX": 8750,
+"orbitY": 9150
+}
+
+**Nota:** A frota em cinturão usa `orbitX`/`orbitY` fixos (posição estática, sem fórmula orbital). A frota em planeta usa `orbitRadius`/`orbitPeriod`/`orbitPhase` para órbita local.
 
 ---
 
@@ -276,6 +300,28 @@ Representa uma viagem entre dois pontos orbitais.
 
 ---
 
+# Session
+
+Representa uma sessão de jogador (gerenciamento de reconexão).
+
+## Campos
+
+* sessionId (chave: `"session-" + Date.now() + "-" + random`)
+* playerId
+
+## Exemplo
+
+{
+"session-1715000000-a1b2c3": "player-1"
+}
+
+## Armazenamento
+
+- Cliente: `localStorage("zeus_session_id")`
+- Servidor: mapa `sessions: { [sessionId]: playerId }` em memória
+
+---
+
 # GameState
 
 Estado global do universo.
@@ -316,7 +362,35 @@ posição no plano:
 ```
 
 86400 = número de segundos em um dia terrestre (24h × 60min × 60s).
-orbitalPeriod está em dias, simulatedTime em segundos — a conversão unifica as unidades.
+**simulatedTime está em milissegundos** no servidor — a fórmula `simulatedTime / (orbitalPeriodDias × 86400)` trata ms como segundos, o que combinado com `simulatedTime += 1000` por tick gera o fator de aceleração 1000×.
+orbitalPeriod está em dias, simulatedTime em milissegundos.
+
+### Cálculo de posição da frota em órbita de planeta (não utiliza a fórmula orbital acima)
+
+```
+angle = fleet.orbitPhase + (simulatedTime / fleet.orbitPeriod) × 2π
+
+fx = planetPos.x + cos(angle) × fleet.orbitRadius
+fy = planetPos.y + sin(angle) × fleet.orbitRadius
+
+orbitRadius = body.size + 5
+orbitPeriod = 15000  // ms — 15 segundos por órbita local
+```
+
+### Cálculo do ponto de controle bezier
+
+Para trajetórias de viagem (transferência orbital):
+
+```
+midX = (originX + destX) / 2
+midY = (originY + destY) / 2
+dirX = midX - centerX
+dirY = midY - centerY
+len  = sqrt(dirX² + dirY²) || 1
+push = dist(origem, centro) × 0.8
+cpX = midX + (dirX / len) × push
+cpY = midY + (dirY / len) × push
+```
 
 ---
 

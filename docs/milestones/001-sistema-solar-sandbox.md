@@ -128,7 +128,7 @@ Escala: 1 pixel = 1.000.000 km
 
 | Corpo | semiMajorAxis (px) | Excentricidade | Período (dias) | size (px) | Cor | Tipo |
 |---|---|---|---|---|---|---|
-| Sol | centro | 0 | — | 40 | #FFD700 | STAR |
+| Sol | centro | 0 | — | 28 | #FFD700 | STAR |
 | Mercúrio | 57,9 | 0,205 | 88 | 5 | #B5B5B5 | SOLID |
 | Vênus | 108,2 | 0,007 | 225 | 8 | #E6B87D | SOLID |
 | Terra | 149,6 | 0,017 | 365 | 8 | #4B7BE5 | SOLID |
@@ -205,7 +205,7 @@ O cálculo de posição orbital usa simulatedTime no lugar do tick:
 r(θ) = semiMajorAxis × (1 - eccentricity²) / (1 + eccentricity × cos(θ))
 ```
 
-Onde orbitalPeriodDias é o período da tabela em dias terrestres. 86400 é o número de segundos em um dia terrestre (24h × 60min × 60s) — necessário para converter dias para segundos simulados. O fator de aceleração poderá ser ajustado por milestone.
+Onde orbitalPeriodDias é o período da tabela em dias terrestres. 86400 é o número de segundos em um dia terrestre (24h × 60min × 60s). **Importante:** simulatedTime está em milissegundos, mas é tratado como segundos na fórmula — o denominador efetivo é `(orbitalPeriodDias × 86400)` segundos. Como cada tick adiciona 1000ms, o resultado é o fator de aceleração 1000×. O fator de aceleração poderá ser ajustado por milestone.
 
 A velocidade das frotas também opera neste mesmo domínio (simulatedTime), garantindo que órbitas e viagens compartilhem a mesma escala temporal.
 
@@ -226,28 +226,56 @@ ORBIT
 
 # Órbita da Frota
 
-Quando em órbita:
+Quando em órbita de um **planeta**:
 
 * a frota acompanha a posição do planeta
 * a frota realiza uma pequena órbita visual ao redor do planeta
 
-A órbita da frota não precisa utilizar física real.
+Fórmula da órbita local (calculada pelo cliente a cada frame, servidor apenas fornece parâmetros):
 
-O objetivo é apenas demonstrar visualmente que ela está estacionada naquele corpo orbital.
+```
+angle = fleet.orbitPhase + (simulatedTime / fleet.orbitPeriod) × 2π
+
+fx = planetPos.x + cos(angle) × orbitRadius
+fy = planetPos.y + sin(angle) × orbitRadius
+
+orbitRadius = body.size + 5
+orbitPeriod = 15000 ms (sempre, independente do período orbital do planeta)
+```
+
+A órbita da frota não utiliza física real. O objetivo é apenas demonstrar visualmente que ela está estacionada naquele corpo orbital.
+
+O cliente mantém uma réplica local do `simulatedTime` extrapolada a cada frame (`currentSimulatedTime = lastSimulatedTime + (performance.now() - lastWallTime)`), permitindo calcular a posição orbital exata da frota 60 vezes por segundo — animação contínua e sem paradinhas entre STATE_UPDATEs.
+
+Quando em órbita de um **cinturão de asteroides**:
+
+* a frota usa coordenadas fixas armazenadas (`orbitX`/`orbitY`) projetadas no raio médio do cinturão
+* não utiliza fórmula orbital; posição é estática no referencial do sistema
 
 ---
 
 # Navegação
 
-O jogador seleciona um destino clicando diretamente sobre um OrbitalBody ou sobre as partículas visuais de um cinturão.
+O jogador seleciona um destino clicando diretamente sobre um OrbitalBody ou sobre a região de um cinturão.
+
+## Detecção de Clique
+
+A detecção usa coordenadas do mundo (convertidas da tela via `camera.screenToWorld()`):
+
+**STAR**: acerto se distância ≤ `body.size + 5`
+**PLANET**: acerto se distância ≤ `body.size + 15`
+**ASTEROID_BELT**: acerto se `beltInnerRadius ≤ distância do centro ≤ beltOuterRadius`; seleciona o anel mais próximo do raio médio
+**RING_SYSTEM**: não clicável (ignorado)
+
+O raio de acerto maior para planetas compensa a escala visual pequena e facilita a interação.
 
 Exemplos:
 
 * Marte
 * Júpiter
 * Saturno
-* Cinturão Principal (clicar em qualquer partícula)
-* Cinturão de Kuiper (clicar em qualquer partícula)
+* Cinturão Principal (clicar na região anular)
+* Cinturão de Kuiper (clicar na região anular)
 
 ---
 
@@ -300,7 +328,7 @@ O jogador deve conseguir acompanhar visualmente toda a movimentação.
 ## Mecânica de Viagem
 
 ```
-Fleet speed: 20 pixels / 1000 simulatedTime (mesmo domínio temporal das órbitas)
+Fleet speed: 6 pixels / 1000 simulatedTime (mesmo domínio temporal das órbitas)
 
 Cálculo de travelSimulatedTime:
   distance            = distância linear entre origem e destino (em pixels)
@@ -316,7 +344,7 @@ Trajetória (curva de transferência):
   Ponto de controle (CP) da bezier:
     mid  = (origem + destino) / 2
     dir  = normalize(mid - centroDoSistema)
-    push = distance(origem, centroDoSistema) × 0.4
+    push = distance(origem, centroDoSistema) × 0.8
     CP   = mid + dir × push
 
   A frota segue a MESMA curva bezier (não interpolação linear):
@@ -357,7 +385,16 @@ defaultScale  = calculado para caber o sistema na viewport
 incremento    = 10% por passo do scroll
 ```
 
-O zoom deve ser centrado na posição atual do mouse (zoom to cursor).
+O zoom deve ser centrado na posição atual do mouse (zoom to cursor):
+
+```
+factor = 1 + 0.1 × step   // step = +1 (scroll up) ou -1 (scroll down)
+newScale = clamp(oldScale × factor, minScale, maxScale)
+
+// Preserva ponto do mundo sob o cursor:
+state.x += worldX × (oldScale - newScale)
+state.y += worldY × (oldScale - newScale)
+```
 
 ---
 
@@ -382,32 +419,157 @@ Ao clicar:
 
 * a câmera centraliza na posição atual da frota
 * o nível de zoom é preservado
-* animação suave de transição (ex: 300ms ease-out)
+* animação suave de transição via lerp (`camera.state.x += (targetX - state.x) × 0.15`, mesma fórmula da frota)
 
 ---
 
+# Login
+
+O jogo utiliza um overlay HTML (`<div id="loginOverlay">`) em tela cheia sobre o canvas PixiJS para o fluxo de entrada.
+
+## Primeira sessão
+
+1. Overlay exibe `<select>` com os 8 planetas (Mercúrio a Netuno) como opções de corpo inicial
+2. Botão "Iniciar Jornada" habilitado
+3. Ao clicar: gera `sessionId = "session-" + Date.now() + "-" + random(6)` e armazena em `localStorage("zeus_session_id")`
+4. Conecta WebSocket e envia `HELLO { sessionId, startingBody }`
+
+## Sessão existente (reconexão)
+
+1. Ao detectar `sessionId` no localStorage, o overlay é exibido com:
+   - Título: "Reconectando..."
+   - Select escondido
+   - Mensagem: "Retomando sessão anterior..."
+   - Botão "Iniciar Jornada" desabilitado
+2. Conecta WebSocket e envia `HELLO { sessionId, startingBody: null }`
+
+## Finalização do login
+
+O overlay permanece visível até a chegada do evento `WELCOME` do servidor.
+Apenas ao receber `WELCOME` a função `hideLogin()` é chamada (esconde overlay, exibe canvas).
+
+## Reconexão automática
+
+Ao fechar o WebSocket, tenta reconectar a cada 2 segundos:
+```
+setTimeout(() => connect(sessionId, startingBody), 2000)
+```
+
+# Logoff
+
+Botão permanente na barra de botões (`#btnBar`) ao lado do botão Centralizar Frota:
+
+- Cor: vermelha (`#FF4444`)
+- Rótulo: "Logoff"
+
+Ação ao clicar:
+
+1. `localStorage.removeItem("zeus_session_id")`
+2. `ws.close()`
+3. `location.reload()`
+
+O servidor mantém a sessão em memória (órfã), mas o cliente perde a referência.
+Um novo início criará uma nova sessão e uma nova frota.
+
 # Renderização
 
-Representação mínima:
+## Camadas (ordem dentro do container da câmera)
 
-* Sol → círculo
-* Planetas → círculos
+1. `orbitLayer` — órbitas elípticas, círculo dos cinturões, trajetórias de movimento
+2. `bodyLayer` — corpos celestes (círculos)
+3. `ringLayer` — partículas de cinturões e anéis (nunca limpa em redrawAll)
+4. `fleetLayer` — triângulos da frota
+
+## Representação Mínima
+
+* Sol → círculo preenchido
+* Planetas → círculos preenchidos
 * Frota → triângulo
-* Órbitas → linhas elípticas
-* Cinturões → círculos individuais (partículas geradas no cliente, sem representação no modelo de dados)
-  - Geração: para cada partícula, sortear `angulo ∈ [0, 2π]` e `raio ∈ [beltInnerRadius, beltOuterRadius]`. Posição inicial: `x = centerX + cos(angulo) × raio`, `y = centerY + sin(angulo) × raio`. Cada partícula armazenada como `{ graphic, angulo, raio }`.
-  - Cinturão Principal: ~60 partículas de 2-3px, cor #8B7355 com alpha 0.3 a 0.8
-  - Cinturão de Kuiper: ~120 partículas de 2px, cor #8B7355 com alpha 0.2 a 0.6
-  - Animação (aplicada a cada frame do ticker PixiJS, 60fps): `angulo += angularSpeed × deltaTime`; `pos = center + raio × (cos(angulo), sin(angulo))`. `angularSpeed = 0.0002 rad/ms` (≈ 1 volta a cada ~31s). Direção: anti-horário.
-  - Camera scale < 2.0: partículas estáticas (posição fixa, sem update de ângulo). Camera scale >= 2.0: animação ativa.
-  - Partículas sempre visíveis e clicáveis em qualquer zoom.
-* Anéis de Saturno → mesmo sistema de partículas, geradas com offset RELATIVO a Saturno: `raio ∈ [5, 15]px`, ~40 partículas, 1-2px, cor #C8B896, alpha 0.2-0.6
-  - Container PIXI filho do container de Saturno (acompanha o planeta automaticamente)
-  - Camera scale < 3.0: invisível. Camera scale >= 3.0: visível.
+* Órbitas → linhas elípticas (`lineStyle(1.5, #2A2A4A, 0.5)`)
+* Cinturões → linha circular no raio médio + sistema de partículas
+* Anéis de Saturno → sistema de partículas em container independente
 
-Sem texturas, sombras, iluminação, ou efeitos visuais complexos.
+## Cinturões de Asteroides (partículas)
 
-Exceção: glow sutil no Sol (círculo com gradiente radial + blur).
+Partículas geradas no cliente, **sem representação individual no modelo de dados**.
+
+### Geração
+
+Para cada partícula, sortear `angulo ∈ [0, 2π]` e `raio ∈ [beltInnerRadius, beltOuterRadius]`.
+Posição inicial: `x = centerX + cos(angulo) × raio`, `y = centerY + sin(angulo) × raio`.
+Cada partícula armazenada como `{ graphic, angulo, raio, alpha, grainDots, asteroidVerts, lastMode, asteroidRotation, rotSpeed, vx, vy }`.
+
+### Contagem
+
+- Cinturão Principal: **200 partículas**, cor #8B7355
+- Cinturão de Kuiper: **400 partículas**, cor #8B7355
+
+### Três Modos de Renderização (progressivos por zoom)
+
+O modo é selecionado a cada frame com base em `camera.state.scale`:
+
+**Modo DOT** (`scale < 1.0`):
+- Partícula desenhada como `drawRect` sólido de 1px (alpha 1)
+- Tamanho: `max(1, 1.5 / scale)`
+- Sem animação de rotação orbital
+
+**Modo PIXEL** (`1.0 ≤ scale < 5.0`):
+- Múltiplos pontos (grãos) por partícula: `2 + floor((scale - 1.0) × 3)` grãos
+- Tamanho e alpha variáveis por grão
+- Rotação orbital ativa: `angulo += angularSpeed`
+
+**Modo ARCADE** (`scale ≥ 5.0`):
+- Polígono irregular de asteroide (6–9 vértices gerados aleatoriamente)
+- Renderizado como outline apenas: `lineStyle(0.6, #8B7355, alpha)`
+- Deriva lenta: `vx`, `vy` entre 0.01 e 0.05 px/frame
+- Rotação própria: `asteroidRotation += rotSpeed` (≈ 0.00005 rad/frame)
+
+### Animação Orbital
+
+Realizada a cada frame do ticker PixiJS (60fps).
+
+Componente radial da animação (gira partículas em torno do centro do sistema):
+- `angularSpeed = 0.00005 rad/frame`
+- Direção: anti-horário
+- Ativa apenas quando `scale ≥ DOT_THRESHOLD` (1.0)
+- No modo arcade, a deriva substitui parcialmente a órbita radial; partículas que saem dos limites do cinturão são reposicionadas
+
+### Visibilidade
+
+Partículas **sempre visíveis** em qualquer zoom (sem LOD).
+
+### Cinturão como Órbita
+
+Além das partículas, o cinturão possui uma linha circular representando sua órbita:
+`lineStyle(1.5, color, 0.3)` + `drawCircle(centerX, centerY, midRadius)`
+
+## Anéis de Saturno
+
+Região especial associada ao planeta Saturno (planeta GAS com anéis). Apenas representação visual (estética). Não é um corpo independente — acompanha Saturno visualmente.
+
+### Geração
+
+14 bandas elípticas concêntricas, geradas programaticamente no cliente:
+
+- Raio inicial: `1.14 × saturn.size` (≈ 11.4 px do centro)
+- Raio final: `2.23 × saturn.size` (≈ 22.3 px do centro)
+- Espessura de cada banda: `0.05 × saturn.size`
+- Excentricidade variável: `0.15 + |t - 0.5| × 0.70` (centro mais circular, bordas mais elípticas; max ~0.5)
+- 160 partículas por banda = **2240 partículas no total**
+
+### Partículas
+
+- `drawPixelRect(pixelSize)` com tamanho `0.3 + random() × 0.3`
+- Cor: `#C8B896`
+- Posição calculada como elipse:
+  - `g.x = cos(angle) × radius`
+  - `g.y = sin(angle) × radius × sqrt(1 - ecc²)`
+- **Estáticas**: sem animação após criação
+- **Container independente**: as partículas NÃO são filhas do container de Saturno; o container de anéis é reposicionado manualmente a cada frame para `(saturn.worldX, saturn.worldY)`
+
+### Visibilidade
+
+Sempre visíveis em qualquer zoom (sem LOD).
 
 ---
 
@@ -431,11 +593,14 @@ Implementação:
 Layer: Container filho de app.stage (fora do container da câmera)
 Fonte: monospace, 10px
 
-Posição (convertida mundo → tela a cada frame):
-  sx = planet.worldX × camera.scale.x + camera.container.x
-  sy = planet.worldY × camera.scale.y + camera.container.y
-  np.x = sx
-  np.y = sy + planet.size × camera.scale.x + 4
+Posição (convertida mundo → tela a cada frame via `camera.worldToScreen()`):
+  - sx = worldX × camera.state.scale + camera.state.x
+  - sy = worldY × camera.state.scale + camera.state.y
+  - np.x = sx
+  - np.y = sy + body.size × camera.state.scale + 4
+
+Para cinturões: o rótulo é posicionado na borda direita do círculo médio do cinturão
+(pos.x + midRadius, pos.y), usando size fixo 6.
 ```
 
 ---
@@ -464,6 +629,31 @@ não mais no evento STATE_UPDATE
 
 Isso produz movimento contínuo e suave mesmo com atualizações esparsas do servidor.
 
+## Animação Contínua (Eliminação da Paradinha)
+
+O problema: mesmo com lerp a 15%/frame, a frota em órbita ou viagem apresentava pequenas paradinhas porque o alvo (`targetX/targetY`) só era atualizado a cada STATE_UPDATE (1/s). Entre atualizações, o alvo ficava congelado na última posição conhecida, e ao chegar o próximo tick o alvo saltava para uma nova posição.
+
+Solução: **cálculo de posição exata no cliente a cada frame** usando `simulatedTime` extrapolado localmente:
+
+```
+// No ticker (60fps):
+simTime = lastSimulatedTime + (performance.now() - lastWallTime)
+
+// Se ORBIT em planeta:
+angle = fleet.orbitPhase + (simTime / fleet.orbitPeriod) × 2π
+fx = planetPos.x + cos(angle) × fleet.orbitRadius
+fy = planetPos.y + sin(angle) × fleet.orbitRadius
+
+// Se TRAVEL:
+progress = clamp((simTime - departureTime) / (arrivalTime - departureTime), 0, 1)
+pos = bezierPoint(origin, controlPoint, destination, progress)
+```
+
+Isso elimina a paradinha porque:
+1. O alvo da frota é recalculado a **cada frame** (60fps), não mais a cada 1s
+2. O `simTime` local avança na mesma velocidade do servidor (1000 ms/s), mantendo sincronia
+3. O lerp residual (15%/frame) absorve micro-variações entre o cálculo local e o STATE_UPDATE seguinte
+
 ## Paleta de Cores
 
 | Elemento | Cor | Descrição |
@@ -471,7 +661,7 @@ Isso produz movimento contínuo e suave mesmo com atualizações esparsas do ser
 | Fundo | #0A0A1A | Azul marinho escuro (espaço) |
 | Órbitas | #2A2A4A | Elipses das trajetórias |
 | Trajetória da frota | #00FF88 | Linha de viagem ativa |
-| Sol | #FFD700 | Dourado com efeito glow |
+| Sol | #FFD700 | Dourado |
 | Mercúrio | #B5B5B5 | Cinza |
 | Vênus | #E6B87D | Amarelo pastel |
 | Terra | #4B7BE5 | Azul |
@@ -487,7 +677,7 @@ Isso produz movimento contínuo e suave mesmo com atualizações esparsas do ser
 
 | Corpo | Raio visual (px) |
 |---|---|
-| Sol | 40 |
+| Sol | 28 |
 | Mercúrio | 5 |
 | Vênus | 8 |
 | Terra | 8 |
@@ -499,7 +689,9 @@ Isso produz movimento contínuo e suave mesmo com atualizações esparsas do ser
 
 ## Frota
 
-Triângulo equilátero com 4px de lado, cor #00FF88.
+Triângulo apontando para cima com vértices `(0, -3), (2.6, 2), (-2.6, 2)` (≈6×5.2px), cor `#00FF88`.
+
+A posição é calculada a cada frame do ticker (60fps) via simulatedTime extrapolado localmente (ver "Animação Contínua"). O valor de STATE_UPDATE (1/s) serve apenas para re-sincronizar simulatedTime, não para atualizar target.
 
 ---
 
@@ -518,13 +710,14 @@ Ambos os cinturões (Principal e Kuiper) compartilham o mesmo comportamento. A d
 
 - Localização: entre Marte e Júpiter
 - Raio interno: ~300px, raio externo: ~500px
-- ~60 partículas, 2-3px, cor #8B7355, alpha 0.3-0.8
+- **200 partículas**, cor #8B7355
+- Ver seção [Renderização → Cinturões de Asteroides](#cinturões-de-asteroides-partículas) para detalhes de renderização e animação
 
 ### Cinturão de Kuiper
 
 - Localização: borda do sistema solar
 - Raio interno: ~4.500px, raio externo: ~7.000px
-- ~120 partículas, 2px, cor #8B7355, alpha 0.2-0.6
+- **400 partículas**, cor #8B7355
 - Mesmo comportamento do Principal
 
 ### Interação
@@ -561,30 +754,28 @@ Quando a frota viaja para um cinturão, o destino é calculado pelo servidor:
 
 #### Órbita da Frota no Cinturão
 
-Após chegar, a frota orbita o Sol rigorosamente como um planeta, seguindo a órbita do cinturão:
+Após chegar, a frota usa coordenadas fixas armazenadas no servidor (`orbitX`/`orbitY`), projetadas no raio médio do cinturão no ângulo do ponto de chegada. A posição da frota no cinturão é estática no referencial do sistema (não utiliza fórmula orbital):
 
 ```
 Fleet.state = ORBIT
 Fleet.locationId = "main-belt" (ou "kuiper-belt")
 
-anguloOrbital(t) = (2π × simulatedTime / (periodoOrbital × 86400) + faseInicial) mod 2π
+// Calculado na chegada e armazenado:
+orbitX = centerX + cos(anguloChegada) × midRadius
+orbitY = centerY + sin(anguloChegada) × midRadius
 
-posFrota.x = centerX + midRadius × cos(anguloOrbital)
-posFrota.y = centerY + midRadius × sin(anguloOrbital)
+// Posição da frota (constante):
+posFrota.x = orbitX
+posFrota.y = orbitY
 ```
 
 Onde:
 - `midRadius` = `(beltInnerRadius + beltOuterRadius) / 2` (calculado na chegada)
-- `periodoOrbital` = período do planeta mais próximo: Marte (687d) para o Principal, Netuno (60.190d) para Kuiper
-- `faseInicial` = ângulo do ponto de chegada (para a frota começar de onde chegou)
-
-Isso garante que a frota mantenha-se dentro da região do cinturão orbitando o Sol com a mesma mecânica orbital dos planetas.
+- `anguloChegada` = `atan2(arrivalY - centerY, arrivalX - centerX)`
 
 Quando já estiver na órbita do cinturão: menu com opção "Iniciar mineração" (placeholder — sem ação).
 
 ## Anéis de Saturno
-
-Região especial associada ao planeta Saturno (planeta GAS com anéis).
 
 ### Modelo
 
@@ -595,15 +786,9 @@ Região especial associada ao planeta Saturno (planeta GAS com anéis).
 
 ### Renderização
 
-- Mesmo sistema de partículas dos cinturões de asteroides
-- Partículas geradas com offset RELATIVO a Saturno:
-  - Container PIXI filho do container de Saturno (herda a transformação do planeta)
-  - `raio ∈ [5, 15]px` (distância do centro de Saturno)
-  - `angulo ∈ [0, 2π]` sorteado, ~40 partículas, 1-2px, cor #C8B896, alpha 0.2-0.6
-  - Animação: mesma `angularSpeed` dos cinturões (0.0002 rad/ms), rotação no eixo Z
-  - Posição absoluta calculada automaticamente por ser filho de Saturno
-- LOD: `camera.scale < 3.0` → invisível; `camera.scale >= 3.0` → visível
-- Sem interação direta: não é clicável, não é navegável
+Ver seção [Renderização → Anéis de Saturno](#anéis-de-saturno-1) para detalhes completos.
+As partículas são geradas em container independente (não filho de Saturno), reposicionado manualmente.
+Sempre visíveis (sem LOD por zoom).
 
 ### Mineração futura
 
@@ -618,8 +803,8 @@ Ao iniciar o jogo deve ser possível:
 * visualizar planetas se movendo
 * visualizar a frota orbitando
 * visualizar partículas animadas dos cinturões de asteroides
-* visualizar anéis de Saturno (partículas visíveis ao aplicar zoom)
-* clicar em partículas do cinturão para selecionar como destino
+* visualizar anéis de Saturno (partículas visíveis em qualquer zoom)
+* clicar na região do cinturão para selecionar como destino
 * navegar pelo sistema usando zoom e pan
 * selecionar um destino
 * iniciar uma viagem

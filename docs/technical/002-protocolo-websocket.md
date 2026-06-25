@@ -66,13 +66,17 @@ A partir deste momento, todo objeto orbital é representado como:
 
 Cliente inicia conexão.
 
-Se o cliente já possui um playerId de sessão anterior, deve enviá-lo para reentrar no jogo.
+Se o cliente já possui um sessionId de sessão anterior (armazenado em localStorage), deve enviá-lo para reentrar no jogo.
 
 ### Cliente (primeira conexão)
 
 {
 "type": "COMMAND",
-"action": "HELLO"
+"action": "HELLO",
+"payload": {
+"sessionId": "session-1715000000-a1b2c3",
+"startingBody": "earth"
+}
 }
 
 ### Cliente (reconexão)
@@ -81,32 +85,49 @@ Se o cliente já possui um playerId de sessão anterior, deve enviá-lo para ree
 "type": "COMMAND",
 "action": "HELLO",
 "payload": {
-"playerId": "player-1"
+"sessionId": "session-1715000000-a1b2c3",
+"startingBody": null      /* null = usar sessão existente */
 }
 }
 
-### Servidor (sucesso)
+### Servidor (sucesso — nova sessão)
 
 {
 "type": "WELCOME",
-"playerId": "player-1"
+"playerId": "player-3"
 }
 
-### Servidor (playerId inválido na reconexão)
+### Servidor (sucesso — sessão reutilizada)
 
 {
 "type": "WELCOME",
-"playerId": "player-2"   /* servidor cria novo player */
+"playerId": "player-1"    /* mesmo playerId da sessão anterior */
+}
+
+### Servidor (sessionId inválido)
+
+{
+"type": "WELCOME",
+"playerId": "player-4"    /* servidor cria novo player + nova sessão */
 }
 
 ### Nota
 
-Imediatamente após enviar WELCOME, o servidor empurra automaticamente:
+Imediatamente após enviar WELCOME, o servidor empurra automaticamente na sequência:
 
-  SYSTEM_DATA  → estado atual do sistema solar
+  SYSTEM_DATA  → estado atual do sistema solar (completo com todos os orbitalBodies)
   FLEET_DATA   → estado da frota do jogador
 
-O cliente não precisa solicitar GET_SYSTEM ou GET_FLEET.
+O cliente não precisa solicitar GET_SYSTEM ou GET_FLEET via comandos separados.
+
+### Processamento do lado do servidor
+
+1. Servidor recebe HELLO com sessionId e startingBody
+2. Busca sessão em `sim.sessions[sessionId]`:
+   - Se encontrada: reusa playerId associado
+   - Se não: gera `"player-" + nextPlayerId++`, cria frota via `addPlayerWithStartingBody(playerId, startingBody)`, associa sessionId → playerId
+3. Responde WELCOME, depois envia SYSTEM_DATA, depois FLEET_DATA
+4. Registra `ws.playerId` na conexão para broadcast de STATE_UPDATE
 
 ---
 
@@ -146,7 +167,7 @@ O servidor envia todos os OrbitalBodies do sistema:
 "centerX": 9000,
 "centerY": 9000,
 "orbitalBodies": [
-{ "id": "sun",          "type": "STAR",         "semiMajorAxis": 0,    "eccentricity": 0, "orbitalPeriod": 0, "size": 40, "color": "#FFD700" },
+{ "id": "sun",          "type": "STAR",         "semiMajorAxis": 0,    "eccentricity": 0, "orbitalPeriod": 0, "size": 28, "color": "#FFD700" },
 { "id": "mercury",      "type": "PLANET",      "planetType": "SOLID", "semiMajorAxis": 57.9, "eccentricity": 0.205, "orbitalPeriod": 88, "orbitalPhase": 0, "size": 5, "color": "#B5B5B5" },
 { "id": "venus",        "type": "PLANET",      "planetType": "SOLID", "semiMajorAxis": 108.2, "eccentricity": 0.007, "orbitalPeriod": 225, "orbitalPhase": 0, "size": 8, "color": "#E6B87D" },
 { "id": "earth",        "type": "PLANET",      "planetType": "SOLID", "semiMajorAxis": 149.6, "eccentricity": 0.017, "orbitalPeriod": 365, "orbitalPhase": 0, "size": 8, "color": "#4B7BE5" },
@@ -172,7 +193,7 @@ O servidor envia todos os OrbitalBodies do sistema:
 {
 "type": "FLEET_DATA",
 "payload": {
-"fleetId": "fleet-1",
+"fleetId": "player-1",
 "location": {
 "type": "ORBITAL_BODY",
 "bodyId": "mars",
@@ -180,6 +201,17 @@ O servidor envia todos os OrbitalBodies do sistema:
 }
 }
 }
+
+**Nota:** Na POC, `fleetId` é igual a `playerId`. Cada jogador possui exatamente uma frota.
+
+## Estado da frota
+
+A frota possui dois estados possíveis, refletidos no STATE_UPDATE:
+
+| Estado | Descrição |
+|--------|-----------|
+| `"ORBIT"` | Frota estacionada em um corpo (planeta ou cinturão). Posição calculada por órbita local (planeta) ou coordenada fixa (cinturão) |
+| `"TRAVEL"` | Frota em viagem. Posição interpolada ao longo de curva bezier |
 
 ---
 
@@ -219,7 +251,14 @@ Quando o destino é um cinturão, o cliente envia a posição do clique como arr
 }
 }
 
-O servidor projeta arrivalPosition no raio médio do cinturão e usa essa projeção como destino da viagem.
+O servidor projeta arrivalPosition no raio médio do cinturão e usa essa projeção como destino da viagem:
+
+```
+angle = atan2(arrivalY - centerY, arrivalX - centerX)
+midRadius = (beltInnerRadius + beltOuterRadius) / 2
+destX = centerX + cos(angle) × midRadius
+destY = centerY + sin(angle) × midRadius
+```
 
 arrivalPosition é opcional. Quando ausente (destino = planeta), a viagem usa a posição orbital calculada do corpo de destino.
 
@@ -278,11 +317,16 @@ Atualização periódica do universo, enviada a cada tick (1s) para todos os cli
       "kuiper-belt":{ "x": 9000, "y": 9000 }
     },
     "fleets": {
-      "fleet-1": {
+      "player-1": {
         "state": "ORBIT",
         "locationId": "mars",
         "x": 9205,
-        "y": 8865
+        "y": 8865,
+        "orbitRadius": 25,
+        "orbitPeriod": 15000,
+        "orbitPhase": 1.23,
+        "orbitX": null,
+        "orbitY": null
       }
     },
     "movements": [
@@ -304,7 +348,7 @@ Atualização periódica do universo, enviada a cada tick (1s) para todos os cli
 }
 ```
 
-O cliente deve interpolar visualmente a posição entre STATE_UPDATES para obter animação suave em 60fps.
+O cliente calcula a posição exata da frota a cada frame (60fps) via simulatedTime extrapolado localmente, eliminando stutter entre STATE_UPDATES. STATE_UPDATE (1/s) re-sincroniza simulatedTime. O servidor mantém o cálculo authoritative.
 
 ---
 
@@ -333,13 +377,15 @@ Formato padrão:
 
 # Regra principal do protocolo
 
-O cliente nunca assume lógica de jogo.
+O cliente nunca assume lógica de jogo que afete o estado authoritative.
 
 Ele apenas:
 
 * envia comandos
 * recebe estados
 * renderiza simulação
+
+**Exceção — animação contínua:** O cliente calcula a posição da frota localmente a cada frame (órbita e viagem bezier) usando simulatedTime extrapolado. Isso é apenas para suavização visual (60fps). O servidor mantém o cálculo authoritative e re-sincroniza a cada STATE_UPDATE (1/s).
 
 ---
 

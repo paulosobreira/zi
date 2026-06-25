@@ -39,24 +39,22 @@ O jogo é uma simulação persistente baseada em ticks.
 
 ## Persistência simples (inicial)
 
-Durante os primeiros milestones:
+### POC (Milestone 1)
 
-### armazenamento em JSON
+Todo o estado é mantido **em memória** no servidor:
 
-Arquivos:
+- `sim.sessions: { [sessionId]: playerId }` — mapa de sessões para reconexão
+- `sim.players: { [playerId]: { id, createdAt } }` — jogadores
+- `sim.fleets: { [playerId]: fleetObject }` — frotas (um por jogador)
+- `sim.movements: { [playerId]: movementObject }` — movimentos ativos
+- `sim.bodies: [...]` — cópia dos dados do sistema solar
+- `sim.clients: [...]` — conexões WebSocket ativas
 
-data/
+Não há persistência em disco na POC. Ao reiniciar o servidor, todo estado é perdido.
 
-players.json
-fleets.json
-systems.json
-movements.json
+### Evolução futura
 
----
-
-# Evolução futura
-
-A persistência poderá migrar para SQLite sem impacto no domínio.
+A persistência poderá migrar para JSON em disco ou SQLite sem impacto no domínio.
 
 ---
 
@@ -64,22 +62,43 @@ A persistência poderá migrar para SQLite sem impacto no domínio.
 
 ## Backend
 
-Node.js
+Node.js (servidor WebSocket)
 
 Responsável por:
 
 * simulação do universo
 * tick engine
 * validação de comandos
-* persistência
+* gerenciamento de sessões (mapa sessions em memória)
 * cálculo orbital
 * movimentação de frotas
 
 Desenvolvimento:
 
-Usar `node --watch src/server/index.js` para auto-restart ao editar arquivos.
+```bash
+node --watch src/server/index.js   # porta 3001
+```
+
 O `--watch` monitora todo o grafo de módulos importados e reinicia o processo
 automaticamente.
+
+## Frontend (servidor HTTP separado)
+
+Os arquivos estáticos (HTML, JS, PixiJS) são servidos separadamente:
+
+```bash
+python3 -m http.server 3000 --directory public   # porta 3000
+```
+
+Não há bundler. O cliente carrega módulos ES nativos via imports de caminho absoluto:
+
+```js
+import * as PIXI from "/js/pixi.mjs"
+import { camera } from "/js/camera.js"
+```
+
+**PixiJS é vendored localmente** em `public/js/pixi.mjs` (~1MB, 23.771 linhas, v7.4.3).
+Não depende de CDN (rede corporativa bloqueava cdn.jsdelivr.net).
 
 ---
 
@@ -91,27 +110,59 @@ WebSocket (ws)
 * comandos leves
 * eventos contínuos
 
+### Gerenciamento de Sessão
+
+O servidor mantém um mapa `sessions: { [sessionId]: playerId }` em memória.
+O cliente armazena `sessionId` em `localStorage("zeus_session_id")`.
+Na reconexão, envia `HELLO { sessionId, startingBody }`; o servidor reusa o playerId existente.
+
 ### Payload do SYSTEM_DATA
 
 O servidor envia todos os parâmetros necessários para renderização:
 
 * `id`, `name`, `type`, `size`, `color` (identificação básica)
-* `semiMajorAxis`, `eccentricity` (parâmetros orbitais)
+* `semiMajorAxis`, `eccentricity` (parâmetros orbitais — presente em PLANET, STAR)
+* `beltInnerRadius`, `beltOuterRadius` (presente em ASTEROID_BELT)
+* `parentId` (presente em RING_SYSTEM)
 * `centerX`, `centerY` (referencial espacial do sistema)
 
 O cliente nunca hardcoda dados do sistema solar — tudo vem do servidor.
 
 ---
 
-## Frontend
+## Frontend (arquitetura de módulos)
 
-JavaScript + PixiJS
+JavaScript + PixiJS 7 (vendored)
 
-* renderização 2D vetorial
-* zoom e pan espacial
+### Estrutura de módulos
+
+| Módulo | Responsabilidade |
+|--------|-----------------|
+| `main.js` | Orquestrador: WebSocket, login, ticker, conexão entre módulos |
+| `renderer.js` | Camadas PIXI, desenho de corpos/órbitas/frotas/trajetórias |
+| `camera.js` | Pan, zoom (com zoom to cursor), centerOn, fitSystem |
+| `input.js` | Eventos de mouse: pan, clique, detecção de hit em corpos |
+| `contextMenu.js` | Menu de contexto HTML overlay |
+| `particles.js` | Partículas de cinturão (3 modos) e anéis de Saturno (14 bandas) |
+| `nameplates.js` | Rótulos de texto com posição mundo→tela |
+
+### Camadas de renderização (dentro de worldContainer)
+
+1. `orbitLayer` — órbitas elípticas, círculo do cinturão, trajetórias
+2. `bodyLayer` — corpos celestes (círculos)
+3. `ringLayer` — partículas de cinturão e anéis (nunca limpa em redrawAll)
+4. `fleetLayer` — triângulos da frota
+
+`nameplateLayer` fica em `app.stage` (fora do container da câmera), posicionado via conversão mundo→tela a cada frame.
+
+### Recursos
+
+* renderização 2D vetorial (PixiJS Graphics)
+* zoom (0.1x a 8x) e pan (botão direito, meio ou Ctrl+clique)
 * visão top-down do sistema
-* ticker do PixiJS (60fps) para animação suave
-* nameplates em camada separada (app.stage) com posição mundo→tela
+* ticker do PixiJS (60fps) para animação suave (lerp 15%/frame)
+* login overlay HTML sobre o canvas
+* sessão via localStorage + reconexão automática
 
 ---
 
@@ -186,12 +237,8 @@ A cada tick, o servidor executa a seguinte sequência em ordem:
      orbitalBodies, fleets e movements daquele sistema.
      Enviar para cada cliente apenas o STATE_UPDATE do seu sistema atual.
 
-  5. autosave por sistema solar (a cada 30 ticks)
-     Para cada sistema, persistir seus dados em:
-       data/systems/<systemId>/bodies.json
-       data/systems/<systemId>/fleets.json
-       data/systems/<systemId>/movements.json
-     Players e players.json permanecem globais (cross-system).
+   5. (futuro) autosave por sistema solar (a cada 30 ticks)
+      Na POC não há persistência em disco. Tudo é em memória.
 
 Tick = 1 segundo real (wall clock). simulatedTime é independente e pode ser
 acelerado sem afetar o intervalo do tick.
@@ -201,9 +248,17 @@ Isto significa que 1 tick real (1s) equivale a ~16,7 minutos simulados
 
 ---
 
-# Persistência
+# Persistência (POC)
 
-Eventos que disparam save:
+Na POC não há persistência em disco. Todo estado é mantido em memória e perdido ao reiniciar o servidor.
+
+## Sessão (reconexão)
+
+A única persistência é o `sessionId` no `localStorage` do cliente, que permite reconexão enquanto o servidor estiver rodando.
+
+## Futuro
+
+Eventos que dispararão save:
 
 * criação de jogador
 * criação de frota
@@ -220,15 +275,14 @@ autosave a cada 30 segundos
 
 Cliente nunca altera estado diretamente.
 
-Apenas envia comandos.
+Apenas envia comandos via WebSocket (`ws://hostname:3001`):
 
-Exemplo:
+- `HELLO` — inicia conexão com sessionId e startingBody
+- `MOVE_FLEET` — solicita movimentação da frota
+- `PONG` — resposta ao heartbeat do servidor
 
-MOVE_FLEET
-
-GET_SYSTEM
-
-PING
+O servidor transmite `STATE_UPDATE` a cada tick (1s) para todos os clientes conectados,
+contendo posições de todos os corpos e frotas.
 
 ---
 
