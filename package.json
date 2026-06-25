@@ -1,0 +1,12 @@
+{
+  "name": "zeus-interestelar",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev:server": "node --watch src/server/index.js",
+    "dev:client": "python3 -m http.server 3000 --directory public"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
