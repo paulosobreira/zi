@@ -15,7 +15,8 @@ Dois processos em paralelo:
 ```bash
 # Backend
 node --watch src/server/index.js
-
+```
+```bash
 # Frontend
 node --watch serve.js
 ```
