@@ -17,7 +17,7 @@ Dois processos em paralelo:
 node --watch src/server/index.js
 
 # Frontend
-python3 -m http.server 3000 --directory public
+node --watch serve.js
 ```
 
 Abra `http://localhost:3000` no browser.

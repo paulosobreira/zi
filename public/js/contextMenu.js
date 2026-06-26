@@ -53,7 +53,7 @@ export function createContextMenu(el) {
 
     if (isTraveling) {
       items.push({ label: 'Frota em viagem...', action: 'noop', cls: 'disabled' })
-    } else if (!isHere) {
+    } else if (!isHere && body.type !== 'STAR') {
       items.push({ label: 'Viajar para órbita', action: 'travel' })
     } else {
       if (body.type === 'PLANET' && body.planetType === 'SOLID') {

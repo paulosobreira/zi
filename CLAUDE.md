@@ -11,7 +11,7 @@ Two processes must run simultaneously:
 node --watch src/server/index.js
 
 # Frontend — static file server, port 3000
-python3 -m http.server 3000 --directory public
+node --watch serve.js
 ```
 
 No build step, no bundler, no test runner, no linter configured. PixiJS 7 is vendored at `public/js/pixi.mjs` — never import from CDN (corporate network blocks cdn.jsdelivr.net).
@@ -64,6 +64,8 @@ All messages are JSON. Client→server: `{ type: "COMMAND", action, payload }`. 
 Connection flow: client sends `HELLO` → server responds `WELCOME` then immediately pushes `SYSTEM_DATA` + `FLEET_DATA` (no polling needed). Server broadcasts `STATE_UPDATE` every tick. Client sends `MOVE_FLEET` to request movement; server responds `MOVE_STARTED`.
 
 For belt destinations, `MOVE_FLEET` must include `arrivalPosition: {x, y}` (world coords of the click). Server projects it onto the belt's mid-radius.
+
+`MOVE_FLEET` rejects destinations where `type === 'STAR'` — frotas não podem viajar para o Sol (`code: 'INVALID_DESTINATION'`).
 
 ### PixiJS 7 API Notes
 

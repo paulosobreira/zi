@@ -109,6 +109,10 @@ function handleMoveFleet(ws, payload) {
     send(ws, { type: 'ERROR', code: 'INVALID_DESTINATION', message: 'Destino inválido' })
     return
   }
+  if (destBody.type === 'STAR') {
+    send(ws, { type: 'ERROR', code: 'INVALID_DESTINATION', message: 'Não é possível viajar para a órbita do Sol' })
+    return
+  }
 
   const { centerX, centerY } = sim.system
   const originPos = sim.bodies[fleet.locationId] || { x: centerX, y: centerY }

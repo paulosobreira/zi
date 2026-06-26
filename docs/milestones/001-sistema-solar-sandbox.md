@@ -262,7 +262,7 @@ O jogador seleciona um destino clicando diretamente sobre um OrbitalBody ou sobr
 
 A detecção usa coordenadas do mundo (convertidas da tela via `camera.screenToWorld()`):
 
-**STAR**: acerto se distância ≤ `body.size + 5`
+**STAR**: acerto se distância ≤ `body.size + 5` — clicável para hit-test, mas sem menu de contexto (viagem proibida)
 **PLANET**: acerto se distância ≤ `body.size + 15`
 **ASTEROID_BELT**: acerto se `beltInnerRadius ≤ distância do centro ≤ beltOuterRadius`; seleciona o anel mais próximo do raio médio
 **RING_SYSTEM**: não clicável (ignorado)
@@ -293,6 +293,7 @@ As opções variam conforme o tipo do corpo clicado e o estado da frota:
 
 | Corpo | Frota não está na órbita | Frota já está na órbita |
 |-------|--------------------------|--------------------------|
+| STAR | (sem menu — viagem proibida) | (sem menu) |
 | PLANET (SOLID) | Viajar para órbita | Minerar planeta (futuro) |
 | PLANET (GAS, sem anéis) | Viajar para órbita | (sem ação extra) |
 | PLANET (GAS, com anéis) | Viajar para órbita | Minerar asteroides (futuro) |
@@ -306,6 +307,8 @@ Opções de mineração são placeholders: aparecem no menu mas não executam a�
 ---
 
 # Transferência Orbital
+
+Destinos proibidos: corpos do tipo `STAR`. O servidor rejeita `MOVE_FLEET` com `code: INVALID_DESTINATION` caso o destino seja uma estrela.
 
 Ao confirmar a viagem:
 
