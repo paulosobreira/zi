@@ -9,6 +9,18 @@ import { createRenderer } from '/js/renderer.js'
 const WS_URL = `ws://${location.hostname}:3001`
 const SESSION_KEY = 'zeus_session_id'
 
+const testCanvas = document.createElement('canvas')
+const webglAvailable = !!(testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl'))
+if (!webglAvailable) {
+  document.body.innerHTML = '<div style="color:#ff4444;font-family:monospace;padding:40px;font-size:1.2em">' +
+    '<b>WebGL não disponível</b><br><br>' +
+    'O jogo requer WebGL. Tente:<br>' +
+    '• Chrome: Configurações → Sistema → ativar "Usar aceleração de hardware"<br>' +
+    '• Ou acesse <code>chrome://flags/#ignore-gpu-blocklist</code> e ative<br>' +
+    '• Firefox: <code>about:config</code> → <code>webgl.disabled</code> = false</div>'
+  throw new Error('WebGL not available')
+}
+
 const app = new PIXI.Application({
   resizeTo: window,
   backgroundColor: 0x0A0A1A,
